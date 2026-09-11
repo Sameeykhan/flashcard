@@ -1,0 +1,88 @@
+{
+  "cards": [
+    {
+      "id": "a1b2c3d4-0001-0001-0001-000000000001",
+      "question": "What does the @staticmethod decorator do in Python?\n\nclass MyClass:\n    @staticmethod\n    def greet(name):\n        return f'Hello, {name}'",
+      "answer": "@staticmethod defines a method that belongs to the class but does NOT receive the implicit first argument (no 'self' or 'cls'). It behaves like a plain function that lives in the class namespace. Call it via MyClass.greet('Alice') or instance.greet('Alice').",
+      "language": "python",
+      "category": "decorators",
+      "tags": ["python", "oop", "decorators"],
+      "difficulty": 1.0,
+      "correct_count": 0,
+      "wrong_count": 0,
+      "last_reviewed": null,
+      "next_due": null,
+      "created_at": "2026-09-11T00:00:00+00:00"
+    },
+    {
+      "id": "a1b2c3d4-0002-0002-0002-000000000002",
+      "question": "Rewrite this for-loop as a Python list comprehension:\n\nresult = []\nfor x in range(10):\n    if x % 2 == 0:\n        result.append(x ** 2)",
+      "answer": "result = [x ** 2 for x in range(10) if x % 2 == 0]\n\nList comprehension syntax: [expression for item in iterable if condition]. The 'if' clause is optional and acts as a filter.",
+      "language": "python",
+      "category": "comprehensions",
+      "tags": ["python", "list-comprehension", "syntax"],
+      "difficulty": 1.0,
+      "correct_count": 0,
+      "wrong_count": 0,
+      "last_reviewed": null,
+      "next_due": null,
+      "created_at": "2026-09-11T00:00:00+00:00"
+    },
+    {
+      "id": "a1b2c3d4-0003-0003-0003-000000000003",
+      "question": "What is a closure in JavaScript? What does this function return?\n\nfunction makeCounter() {\n  let count = 0;\n  return function () {\n    count += 1;\n    return count;\n  };\n}",
+      "answer": "A closure is a function that retains access to variables from its enclosing (outer) scope even after that outer function has returned.\n\nmakeCounter() returns an inner function. Each call to the returned function increments and returns 'count', which persists in the closure:\n\nconst counter = makeCounter();\ncounter(); // 1\ncounter(); // 2",
+      "language": "javascript",
+      "category": "closures",
+      "tags": ["javascript", "closures", "scope"],
+      "difficulty": 1.0,
+      "correct_count": 0,
+      "wrong_count": 0,
+      "last_reviewed": null,
+      "next_due": null,
+      "created_at": "2026-09-11T00:00:00+00:00"
+    },
+    {
+      "id": "a1b2c3d4-0004-0004-0004-000000000004",
+      "question": "What is the difference between == and === in JavaScript?\n\nconsole.log(0 == '0');   // ?\nconsole.log(0 === '0');  // ?",
+      "answer": "== (loose equality) performs type coercion before comparing — 0 == '0' is true because '0' is coerced to the number 0.\n=== (strict equality) compares both value AND type with no coercion — 0 === '0' is false because number !== string.\n\nBest practice: always use === to avoid unexpected coercion bugs.",
+      "language": "javascript",
+      "category": "equality",
+      "tags": ["javascript", "equality", "type-coercion", "gotcha"],
+      "difficulty": 1.0,
+      "correct_count": 0,
+      "wrong_count": 0,
+      "last_reviewed": null,
+      "next_due": null,
+      "created_at": "2026-09-11T00:00:00+00:00"
+    },
+    {
+      "id": "a1b2c3d4-0005-0005-0005-000000000005",
+      "question": "Explain async/await in Python. What does this coroutine do?\n\nimport asyncio\n\nasync def fetch_data():\n    await asyncio.sleep(1)\n    return 'data'\n\nasyncio.run(fetch_data())",
+      "answer": "async def declares a coroutine function. await suspends the coroutine and yields control back to the event loop until the awaited task completes (here, a 1-second sleep). This is non-blocking: other coroutines can run during the sleep.\n\nasyncio.run() creates an event loop, runs the coroutine to completion, then closes the loop. The call returns 'data' after ~1 second.",
+      "language": "python",
+      "category": "async",
+      "tags": ["python", "async", "asyncio", "concurrency"],
+      "difficulty": 1.0,
+      "correct_count": 0,
+      "wrong_count": 0,
+      "last_reviewed": null,
+      "next_due": null,
+      "created_at": "2026-09-11T00:00:00+00:00"
+    },
+    {
+      "id": "a1b2c3d4-0006-0006-0006-000000000006",
+      "question": "What does JavaScript array destructuring do? What are a, b, and rest here?\n\nconst [a, b, ...rest] = [1, 2, 3, 4, 5];",
+      "answer": "Array destructuring unpacks array values into variables by position.\n\na = 1  (first element)\nb = 2  (second element)\nrest = [3, 4, 5]  (all remaining elements, collected by the rest syntax '...')\n\nYou can also skip elements: const [, second] = [1, 2] gives second = 2.",
+      "language": "javascript",
+      "category": "destructuring",
+      "tags": ["javascript", "destructuring", "es6", "syntax"],
+      "difficulty": 1.0,
+      "correct_count": 0,
+      "wrong_count": 0,
+      "last_reviewed": null,
+      "next_due": null,
+      "created_at": "2026-09-11T00:00:00+00:00"
+    }
+  ]
+}
