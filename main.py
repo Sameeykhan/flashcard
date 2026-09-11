@@ -56,13 +56,16 @@ def main() -> None:
 # ---------------------------------------------------------------------------
 
 def _run_session() -> None:
-    """Start a study session."""
-    from app import quiz
+    """Start an interactive study session driven by QuizSession."""
+    from app.quiz import QuizSession
     try:
-        result = quiz.start_session()
-        # Results screen is shown inside start_session via ui.py
+        session = QuizSession()
+        if not session.has_next():
+            ui.show_info("No cards found to study. Add some cards first!")
+            return
+        ui.run_study_session(session)
     except KeyboardInterrupt:
-        ui.show_info("\nSession interrupted. Progress was saved.")
+        ui.show_info("\nSession interrupted.")
     except Exception as exc:
         ui.show_error(str(exc))
 

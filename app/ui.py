@@ -236,6 +236,43 @@ def show_session_results(result: "SessionResult", weak_cards: List["Card"]) -> N
         pass
 
 
+def run_study_session(session: Any) -> Dict[str, Any]:
+    """Drive an interactive study session using QuizSession public methods.
+
+    The UI layer controls session iteration and user I/O:
+    - Checks session.has_next()
+    - Retrieves active card via session.current_card()
+    - Prompts user and records response via session.submit_answer(correct)
+    - Finalises session via session.end_session() and displays results screen.
+
+    Parameters
+    ----------
+    session:
+        An active QuizSession instance.
+
+    Returns
+    -------
+    dict
+        Completed session metrics dictionary.
+    """
+    total = getattr(session, "total_cards", len(getattr(session, "queue", [])))
+    while session.has_next():
+        card = session.current_card()
+        idx = getattr(session, "index", 0) + 1
+        score = getattr(session, "score", 0)
+
+        show_question(card, idx, total, score)
+        prompt_answer_reveal()
+        show_answer(card)
+        correct = prompt_correct_or_wrong()
+        session.submit_answer(correct)
+
+    results = session.end_session()
+    weak = results.get("hardest_cards", results.get("weak_cards", []))
+    show_session_results(results, weak)
+    return results
+
+
 # ---------------------------------------------------------------------------
 # Progress / stats display
 # ---------------------------------------------------------------------------

@@ -1,295 +1,380 @@
 """
-Tests for app/quiz.py — Quiz Engine.
+Tests for app/quiz.py — Quiz Engine (PRD §5.4 & Prompt 5).
 
 Covers:
-- process_answer: correct path (SRS update, score increment).
-- process_answer: wrong path (SRS update, re-insertion into queue).
-- process_answer: wrong card tracked in wrong_cards list.
-- start_session: raises ValueError on empty deck.
-- start_session: returns a SessionResult.
-- start_session: correct/wrong counts reflected in result.
-- end_session: accuracy, duration, persisted to progress.json.
-- No Rich / no print() in quiz.py.
+- Full session lifecycle using isolated tmp_path fixtures:
+  score updates correctly, has_next() becomes False after the last card,
+  end_session() computes correct duration and accuracy, progress.json
+  actually gets a new session record, and cards.json persists updated card state.
+- Graceful empty deck handling (has_next() is immediately False, no crash).
+- Clear exception when submit_answer() or current_card() is called after session is finished.
+- deck_filter correctly restricts cards by category, language, and tag.
+- Hardest cards calculation and prioritization in session results.
+- Zero Rich imports and zero print()/input() calls in app/quiz.py (module purity).
 """
 
 from __future__ import annotations
 
 import ast
 import time
-from datetime import date, timedelta
+from datetime import datetime, timezone
 
 import pytest
 
-from app.cards import Card
-from app.quiz import SessionState, end_session, process_answer, start_session
+from app.cards import Card, add_card, load_cards, save_cards
+from app.progress import load_progress
+from app.quiz import (
+    QuizSession,
+    SessionEmptyError,
+    SessionResultDict,
+    SessionState,
+    end_session,
+    process_answer,
+    start_session,
+)
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Test Helpers
 # ---------------------------------------------------------------------------
 
-def _make_card(card_id: str = "card-1", difficulty: float = 1.0) -> Card:
-    return Card(
-        id=card_id,
-        question="What is X?",
-        answer="X is Y.",
-        language="python",
-        category="test",
-        tags=[],
-        difficulty=difficulty,
-        created_at="2026-09-11T00:00:00+00:00",
+def _seed_card(
+    cards_path: str,
+    question: str = "What is X?",
+    answer: str = "X is Y.",
+    language: str = "python",
+    category: str = "general",
+    tags: list[str] | None = None,
+    difficulty: float = 1.0,
+) -> Card:
+    """Add and persist a single card to cards_path."""
+    return add_card(
+        question=question,
+        answer=answer,
+        language=language,
+        category=category,
+        tags=tags or [],
+        path=cards_path,
     )
 
 
-def _noop(*args, **kwargs):
-    """No-op stand-in for any UI function."""
-    pass
-
-
-def _correct_fn():
-    return True
-
-
-def _wrong_fn():
-    return False
-
-
 # ---------------------------------------------------------------------------
-# process_answer
+# Full Session Lifecycle
 # ---------------------------------------------------------------------------
 
-class TestProcessAnswer:
-    def test_correct_increments_score(self, tmp_path):
-        card = _make_card()
-        state = SessionState(queue=[])
-        process_answer(card, correct=True, state=state,
-                       progress_path=str(tmp_path / "p.json"))
-        assert state.correct == 1
-        assert state.wrong == 0
+class TestQuizSessionLifecycle:
+    def test_full_session_lifecycle(self, tmp_path):
+        c_path = str(tmp_path / "flashcards.json")
+        p_path = str(tmp_path / "progress.json")
 
-    def test_wrong_increments_wrong(self, tmp_path):
-        card = _make_card()
-        state = SessionState(queue=[])
-        process_answer(card, correct=False, state=state,
-                       progress_path=str(tmp_path / "p.json"))
-        assert state.wrong == 1
-        assert state.correct == 0
+        card1 = _seed_card(c_path, question="Q1?", answer="A1.", difficulty=1.0)
+        card2 = _seed_card(c_path, question="Q2?", answer="A2.", difficulty=1.0)
+        card3 = _seed_card(c_path, question="Q3?", answer="A3.", difficulty=1.0)
 
-    def test_wrong_reinserts_card_in_queue(self, tmp_path):
-        card = _make_card()
-        state = SessionState(queue=[])
-        process_answer(card, correct=False, state=state,
-                       progress_path=str(tmp_path / "p.json"))
-        assert card in state.queue
+        session = QuizSession(cards_path=c_path, progress_path=p_path, session_size=3)
 
-    def test_correct_does_not_reinsert(self, tmp_path):
-        card = _make_card()
-        state = SessionState(queue=[])
-        process_answer(card, correct=True, state=state,
-                       progress_path=str(tmp_path / "p.json"))
-        assert card not in state.queue
+        assert session.has_next() is True
+        assert session.total_cards == 3
+        assert session.score == 0
+        assert session.correct_count == 0
+        assert session.wrong_count == 0
 
-    def test_wrong_adds_to_wrong_cards(self, tmp_path):
-        card = _make_card()
-        state = SessionState(queue=[])
-        process_answer(card, correct=False, state=state,
-                       progress_path=str(tmp_path / "p.json"))
-        assert card in state.wrong_cards
+        # Answer card 1: Correct
+        active_card = session.current_card()
+        assert active_card.id == card1.id
+        session.submit_answer(correct=True)
 
-    def test_correct_does_not_add_to_wrong_cards(self, tmp_path):
-        card = _make_card()
-        state = SessionState(queue=[])
-        process_answer(card, correct=True, state=state,
-                       progress_path=str(tmp_path / "p.json"))
-        assert card not in state.wrong_cards
+        assert session.score == 1
+        assert session.correct_count == 1
+        assert session.wrong_count == 0
+        assert session.has_next() is True
 
-    def test_cards_studied_incremented_for_correct(self, tmp_path):
-        card = _make_card()
-        state = SessionState(queue=[])
-        process_answer(card, correct=True, state=state,
-                       progress_path=str(tmp_path / "p.json"))
-        assert state.cards_studied == 1
+        # Answer card 2: Wrong
+        active_card = session.current_card()
+        assert active_card.id == card2.id
+        session.submit_answer(correct=False)
 
-    def test_cards_studied_incremented_for_wrong(self, tmp_path):
-        card = _make_card()
-        state = SessionState(queue=[])
-        process_answer(card, correct=False, state=state,
-                       progress_path=str(tmp_path / "p.json"))
-        assert state.cards_studied == 1
+        assert session.score == 1
+        assert session.correct_count == 1
+        assert session.wrong_count == 1
+        assert session.has_next() is True
 
-    def test_correct_updates_srs_difficulty_down(self, tmp_path):
-        card = _make_card(difficulty=1.0)
-        state = SessionState(queue=[])
-        process_answer(card, correct=True, state=state,
-                       progress_path=str(tmp_path / "p.json"))
-        assert card.difficulty < 1.0
+        # Answer card 3: Correct
+        active_card = session.current_card()
+        assert active_card.id == card3.id
+        session.submit_answer(correct=True)
 
-    def test_wrong_updates_srs_difficulty_up(self, tmp_path):
-        card = _make_card(difficulty=1.0)
-        state = SessionState(queue=[])
-        process_answer(card, correct=False, state=state,
-                       progress_path=str(tmp_path / "p.json"))
-        assert card.difficulty > 1.0
+        assert session.score == 2
+        assert session.correct_count == 2
+        assert session.wrong_count == 1
 
+        # Session should now be exhausted
+        assert session.has_next() is False
 
-# ---------------------------------------------------------------------------
-# end_session
-# ---------------------------------------------------------------------------
+        # End session and verify metrics
+        results = session.end_session()
+        assert isinstance(results, dict)
+        assert isinstance(results, SessionResultDict)
+        assert results["correct_count"] == 2
+        assert results["wrong_count"] == 1
+        assert results["cards_studied"] == 3
+        assert abs(results["accuracy_pct"] - 66.67) < 0.1
+        assert abs(results["accuracy"] - 0.6667) < 0.01
+        assert results["duration_seconds"] >= 0.0
 
-class TestEndSession:
-    def test_returns_session_result(self, tmp_path):
-        state = SessionState(queue=[], correct=8, wrong=2, cards_studied=10,
-                             start_time=time.time() - 60)
-        result = end_session(state, progress_path=str(tmp_path / "p.json"))
-        from app.progress import SessionResult
-        assert isinstance(result, SessionResult)
+        # Attribute access compatibility
+        assert results.correct == 2
+        assert results.wrong == 1
+        assert results.accuracy_pct == results["accuracy_pct"]
 
-    def test_accuracy_computed_correctly(self, tmp_path):
-        state = SessionState(queue=[], correct=7, wrong=3, cards_studied=10,
-                             start_time=time.time())
-        result = end_session(state, progress_path=str(tmp_path / "p.json"))
-        assert abs(result.accuracy - 0.7) < 0.01
+        # Hardest cards: card2 was wrong so it must be included
+        assert len(results["hardest_cards"]) > 0
+        assert results["hardest_cards"][0].id == card2.id
 
-    def test_all_wrong_accuracy_zero(self, tmp_path):
-        state = SessionState(queue=[], correct=0, wrong=5, cards_studied=5,
-                             start_time=time.time())
-        result = end_session(state, progress_path=str(tmp_path / "p.json"))
-        assert result.accuracy == 0.0
-
-    def test_all_correct_accuracy_one(self, tmp_path):
-        state = SessionState(queue=[], correct=5, wrong=0, cards_studied=5,
-                             start_time=time.time())
-        result = end_session(state, progress_path=str(tmp_path / "p.json"))
-        assert result.accuracy == 1.0
-
-    def test_duration_positive(self, tmp_path):
-        state = SessionState(queue=[], correct=1, wrong=0, cards_studied=1,
-                             start_time=time.time() - 5)
-        result = end_session(state, progress_path=str(tmp_path / "p.json"))
-        assert result.duration_seconds >= 0
-
-    def test_result_persisted_to_progress(self, tmp_path):
-        p_path = str(tmp_path / "p.json")
-        state = SessionState(queue=[], correct=3, wrong=1, cards_studied=4,
-                             start_time=time.time())
-        end_session(state, progress_path=p_path)
-        from app.progress import load_progress
-        sessions, _ = load_progress(p_path)
+        # Verify persistence to progress.json
+        p_data = load_progress(p_path)
+        sessions = p_data["sessions"]
         assert len(sessions) == 1
-        assert sessions[0].correct == 3
+        saved_session = sessions[0]
+        assert saved_session["correct_count"] == 2
+        assert saved_session["wrong_count"] == 1
+        assert abs(saved_session["accuracy_pct"] - 66.67) < 0.1
+
+        # Verify card_stats in progress.json
+        card_stats = p_data["card_stats"]
+        assert card1.id in card_stats
+        assert card_stats[card1.id]["correct_count"] == 1
+        assert card2.id in card_stats
+        assert card_stats[card2.id]["wrong_count"] == 1
+
+        # Verify persistence to flashcards.json
+        disk_cards = {c.id: c for c in load_cards(c_path)}
+        assert disk_cards[card1.id].correct_count == 1
+        assert disk_cards[card2.id].wrong_count == 1
+        assert disk_cards[card2.id].difficulty > 1.0  # increased due to wrong answer
 
 
 # ---------------------------------------------------------------------------
-# start_session
+# Empty Deck Handling
 # ---------------------------------------------------------------------------
 
-class TestStartSession:
-    def _seed_cards(self, cards_path: str, n: int = 3) -> None:
-        """Write n simple cards to cards_path."""
-        from app.cards import add_card
-        for i in range(n):
-            add_card(f"Q{i}?", f"A{i}.", "python", "test", [], path=cards_path)
+class TestEmptyDeckHandling:
+    def test_empty_deck_does_not_crash(self, tmp_path):
+        c_path = str(tmp_path / "empty_cards.json")
+        p_path = str(tmp_path / "empty_progress.json")
 
-    def test_raises_on_empty_deck(self, tmp_path):
+        session = QuizSession(cards_path=c_path, progress_path=p_path)
+        assert session.has_next() is False
+        assert session.total_cards == 0
+        assert session.score == 0
+
+    def test_current_card_on_empty_deck_raises_clear_exception(self, tmp_path):
+        c_path = str(tmp_path / "empty_cards.json")
+        p_path = str(tmp_path / "empty_progress.json")
+
+        session = QuizSession(cards_path=c_path, progress_path=p_path)
+        with pytest.raises(SessionEmptyError) as exc_info:
+            session.current_card()
+        assert "No cards" in str(exc_info.value)
+
+    def test_submit_answer_on_empty_deck_raises_clear_exception(self, tmp_path):
+        c_path = str(tmp_path / "empty_cards.json")
+        p_path = str(tmp_path / "empty_progress.json")
+
+        session = QuizSession(cards_path=c_path, progress_path=p_path)
+        with pytest.raises(SessionEmptyError) as exc_info:
+            session.submit_answer(True)
+        assert "Cannot submit answer" in str(exc_info.value)
+
+    def test_end_session_on_empty_deck_returns_valid_zero_results(self, tmp_path):
+        c_path = str(tmp_path / "empty_cards.json")
+        p_path = str(tmp_path / "empty_progress.json")
+
+        session = QuizSession(cards_path=c_path, progress_path=p_path)
+        results = session.end_session()
+        assert results["cards_studied"] == 0
+        assert results["correct_count"] == 0
+        assert results["wrong_count"] == 0
+        assert results["accuracy_pct"] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Finished Session Exceptions
+# ---------------------------------------------------------------------------
+
+class TestFinishedSessionExceptions:
+    def test_submit_answer_after_completion_raises_exception(self, tmp_path):
         c_path = str(tmp_path / "cards.json")
         p_path = str(tmp_path / "progress.json")
-        with pytest.raises(ValueError, match="No cards"):
-            start_session(
-                cards_path=c_path, progress_path=p_path,
-                show_question_fn=_noop, show_answer_fn=_noop,
-                prompt_reveal_fn=_noop, prompt_correct_fn=_correct_fn,
-                show_results_fn=_noop,
-            )
 
-    def test_returns_session_result(self, tmp_path):
+        _seed_card(c_path, question="Q1?")
+        session = QuizSession(cards_path=c_path, progress_path=p_path, session_size=1)
+
+        assert session.has_next() is True
+        session.submit_answer(True)
+        assert session.has_next() is False
+
+        # Now that session is finished, submitting another answer must raise
+        with pytest.raises(SessionEmptyError) as exc_info:
+            session.submit_answer(True)
+        assert "Cannot submit answer" in str(exc_info.value)
+
+    def test_current_card_after_completion_raises_exception(self, tmp_path):
         c_path = str(tmp_path / "cards.json")
         p_path = str(tmp_path / "progress.json")
-        self._seed_cards(c_path, n=2)
 
-        result = start_session(
-            session_size=2,
-            cards_path=c_path, progress_path=p_path,
-            show_question_fn=_noop, show_answer_fn=_noop,
-            prompt_reveal_fn=_noop, prompt_correct_fn=_correct_fn,
-            show_results_fn=_noop,
-        )
-        from app.progress import SessionResult
-        assert isinstance(result, SessionResult)
+        _seed_card(c_path, question="Q1?")
+        session = QuizSession(cards_path=c_path, progress_path=p_path, session_size=1)
 
-    def test_all_correct_session(self, tmp_path):
-        c_path = str(tmp_path / "cards.json")
-        p_path = str(tmp_path / "progress.json")
-        self._seed_cards(c_path, n=3)
+        session.submit_answer(True)
+        with pytest.raises(SessionEmptyError):
+            session.current_card()
 
-        result = start_session(
-            session_size=3,
-            cards_path=c_path, progress_path=p_path,
-            show_question_fn=_noop, show_answer_fn=_noop,
-            prompt_reveal_fn=_noop, prompt_correct_fn=_correct_fn,
-            show_results_fn=_noop,
-        )
-        assert result.correct == 3
-        assert result.wrong == 0
-        assert result.accuracy == 1.0
 
-    def test_wrong_answers_cause_reinsertion_and_appear_in_result(self, tmp_path):
-        c_path = str(tmp_path / "cards.json")
-        p_path = str(tmp_path / "progress.json")
-        self._seed_cards(c_path, n=2)
+# ---------------------------------------------------------------------------
+# Deck Filtering
+# ---------------------------------------------------------------------------
 
-        # First call: wrong. Second call: correct. (alternating)
-        answers = iter([False, False, True, True])
-        result = start_session(
-            session_size=2,
-            cards_path=c_path, progress_path=p_path,
-            show_question_fn=_noop, show_answer_fn=_noop,
-            prompt_reveal_fn=_noop,
-            prompt_correct_fn=lambda: next(answers),
-            show_results_fn=_noop,
-        )
-        assert result.wrong >= 2
-
+class TestDeckFiltering:
     def test_deck_filter_by_category(self, tmp_path):
-        from app.cards import add_card
         c_path = str(tmp_path / "cards.json")
         p_path = str(tmp_path / "progress.json")
-        add_card("Q1?", "A1.", "python", "alpha", [], path=c_path)
-        add_card("Q2?", "A2.", "python", "beta",  [], path=c_path)
 
-        result = start_session(
-            deck_filter={"category": "alpha"},
-            session_size=5,
-            cards_path=c_path, progress_path=p_path,
-            show_question_fn=_noop, show_answer_fn=_noop,
-            prompt_reveal_fn=_noop, prompt_correct_fn=_correct_fn,
-            show_results_fn=_noop,
+        _seed_card(c_path, question="PyQ?", language="python", category="oop")
+        _seed_card(c_path, question="GoQ?", language="go", category="concurrency")
+
+        session = QuizSession(
+            deck_filter={"category": "oop"},
+            cards_path=c_path,
+            progress_path=p_path,
         )
-        # Only 1 card in "alpha" category
-        assert result.cards_studied == 1
+        assert session.total_cards == 1
+        assert session.current_card().category == "oop"
 
-    def test_session_persisted_to_progress(self, tmp_path):
+    def test_deck_filter_by_language(self, tmp_path):
         c_path = str(tmp_path / "cards.json")
         p_path = str(tmp_path / "progress.json")
-        self._seed_cards(c_path, n=2)
 
-        start_session(
-            session_size=2,
-            cards_path=c_path, progress_path=p_path,
-            show_question_fn=_noop, show_answer_fn=_noop,
-            prompt_reveal_fn=_noop, prompt_correct_fn=_correct_fn,
-            show_results_fn=_noop,
+        _seed_card(c_path, question="Q1?", language="python")
+        _seed_card(c_path, question="Q2?", language="javascript")
+        _seed_card(c_path, question="Q3?", language="python")
+
+        session = QuizSession(
+            deck_filter={"language": "python"},
+            cards_path=c_path,
+            progress_path=p_path,
         )
-        from app.progress import load_progress
-        sessions, _ = load_progress(p_path)
-        assert len(sessions) == 1
+        assert session.total_cards == 2
+
+    def test_deck_filter_by_tag(self, tmp_path):
+        c_path = str(tmp_path / "cards.json")
+        p_path = str(tmp_path / "progress.json")
+
+        _seed_card(c_path, question="Q1?", tags=["basics", "easy"])
+        _seed_card(c_path, question="Q2?", tags=["advanced"])
+
+        session = QuizSession(
+            deck_filter={"tag": "easy"},
+            cards_path=c_path,
+            progress_path=p_path,
+        )
+        assert session.total_cards == 1
+        assert "easy" in session.current_card().tags
+
+    def test_deck_filter_no_matches_returns_empty_session(self, tmp_path):
+        c_path = str(tmp_path / "cards.json")
+        p_path = str(tmp_path / "progress.json")
+
+        _seed_card(c_path, question="Q1?", category="oop")
+
+        session = QuizSession(
+            deck_filter={"category": "nonexistent"},
+            cards_path=c_path,
+            progress_path=p_path,
+        )
+        assert session.has_next() is False
+        assert session.total_cards == 0
 
 
 # ---------------------------------------------------------------------------
-# Module purity checks
+# Reinsert Wrong Option
+# ---------------------------------------------------------------------------
+
+class TestReinsertWrongOption:
+    def test_reinsert_wrong_true_repeats_card(self, tmp_path):
+        c_path = str(tmp_path / "cards.json")
+        p_path = str(tmp_path / "progress.json")
+
+        card = _seed_card(c_path, question="Hard question?")
+        session = QuizSession(
+            cards_path=c_path,
+            progress_path=p_path,
+            session_size=1,
+            reinsert_wrong=True,
+        )
+
+        # 1st attempt: wrong -> re-inserts at tail
+        session.submit_answer(False)
+        assert session.has_next() is True
+        assert session.current_card().id == card.id
+
+        # 2nd attempt: correct -> advances to completion
+        session.submit_answer(True)
+        assert session.has_next() is False
+        assert session.correct_count == 1
+        assert session.wrong_count == 1
+
+
+# ---------------------------------------------------------------------------
+# Legacy Compatibility & Callbacks
+# ---------------------------------------------------------------------------
+
+class TestLegacyCompatibility:
+    def test_start_session_with_callbacks(self, tmp_path):
+        c_path = str(tmp_path / "cards.json")
+        p_path = str(tmp_path / "progress.json")
+
+        _seed_card(c_path, question="Q1?")
+        _seed_card(c_path, question="Q2?")
+
+        shown_questions = []
+
+        def mock_show_q(card, idx, total, score):
+            shown_questions.append(card.id)
+
+        result = start_session(
+            cards_path=c_path,
+            progress_path=p_path,
+            session_size=2,
+            show_question_fn=mock_show_q,
+            prompt_reveal_fn=lambda: None,
+            show_answer_fn=lambda card: None,
+            prompt_correct_fn=lambda: True,
+            show_results_fn=lambda res, weak: None,
+        )
+        assert len(shown_questions) == 2
+        assert result.correct == 2
+
+    def test_process_answer_legacy(self, tmp_path):
+        c_path = str(tmp_path / "cards.json")
+        p_path = str(tmp_path / "progress.json")
+        card = _seed_card(c_path, question="Legacy Q?")
+
+        state = SessionState(queue=[])
+        process_answer(card, correct=True, state=state, cards_path=c_path, progress_path=p_path)
+        assert state.correct == 1
+        assert state.cards_studied == 1
+
+        res = end_session(state, progress_path=p_path)
+        assert res.correct == 1
+
+
+# ---------------------------------------------------------------------------
+# Module Purity Checks
 # ---------------------------------------------------------------------------
 
 class TestQuizPurity:
-    def test_no_direct_print_calls(self):
+    def test_zero_print_calls(self):
         import app.quiz as quiz_module
         with open(quiz_module.__file__, "r", encoding="utf-8") as fh:
             source = fh.read()
@@ -297,20 +382,19 @@ class TestQuizPurity:
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
                 func = node.func
-                if isinstance(func, ast.Name) and func.id == "print":
-                    pytest.fail("quiz.py contains a bare print() call.")
+                if isinstance(func, ast.Name) and func.id in ("print", "input"):
+                    pytest.fail(f"app/quiz.py contains a direct {func.id}() call.")
 
-    def test_no_top_level_rich_import(self):
+    def test_zero_rich_imports(self):
         import app.quiz as quiz_module
         with open(quiz_module.__file__, "r", encoding="utf-8") as fh:
             source = fh.read()
-        # Rich may only be imported inside a function body (lazy), not at top level
         tree = ast.parse(source)
-        for node in tree.body:   # only top-level statements
+        for node in ast.walk(tree):
             if isinstance(node, (ast.Import, ast.ImportFrom)):
-                if isinstance(node, ast.ImportFrom) and node.module and "rich" in node.module:
-                    pytest.fail("quiz.py has a top-level Rich import.")
+                if isinstance(node, ast.ImportFrom) and node.module and "rich" in node.module.lower():
+                    pytest.fail(f"app/quiz.py contains a Rich import: {node.module}")
                 if isinstance(node, ast.Import):
                     for alias in node.names:
-                        if "rich" in alias.name:
-                            pytest.fail("quiz.py has a top-level Rich import.")
+                        if "rich" in alias.name.lower():
+                            pytest.fail(f"app/quiz.py contains a Rich import: {alias.name}")
