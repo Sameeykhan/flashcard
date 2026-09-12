@@ -1,4 +1,4 @@
-export type ThemeMode = 'light' | 'dark' | 'neon' | 'nature';
+export type ThemeMode = 'light' | 'dark' | 'neon' | 'nature' | 'sunset' | 'emerald';
 
 export interface User {
   id: string;
@@ -21,6 +21,7 @@ export interface Card {
   answer: string;
   code_snippet?: string;
   explanation?: string;
+  hint?: string;
   language: string;
   category: string;
   tags: string[];

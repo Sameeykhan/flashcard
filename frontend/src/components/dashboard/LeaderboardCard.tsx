@@ -1,6 +1,6 @@
 import React from 'react';
 import { PeerRank } from '../../types';
-import { Trophy, Medal, Flame, Award } from 'lucide-react';
+import { Trophy, Flame } from 'lucide-react';
 
 interface LeaderboardCardProps {
   peers: PeerRank[];

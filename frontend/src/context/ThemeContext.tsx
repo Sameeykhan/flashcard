@@ -11,12 +11,14 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-const THEMES: ThemeMode[] = ['dark', 'light', 'neon', 'nature'];
+const THEMES: ThemeMode[] = ['dark', 'light', 'sunset', 'emerald', 'neon', 'nature'];
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<ThemeMode>(() => {
-    const saved = localStorage.getItem('codecards_theme') as ThemeMode;
-    return THEMES.includes(saved) ? saved : 'dark';
+    let saved = localStorage.getItem('codecards_theme');
+    if (saved === 'instagram') saved = 'sunset';
+    if (saved === 'whatsapp') saved = 'emerald';
+    return THEMES.includes(saved as ThemeMode) ? (saved as ThemeMode) : 'dark';
   });
 
   const [reducedMotion, setReducedMotionState] = useState<boolean>(() => {

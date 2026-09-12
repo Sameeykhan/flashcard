@@ -23,7 +23,7 @@ import { cardService } from './services/cardService';
 import { srsService } from './services/srsService';
 import { progressService } from './services/progressService';
 import { motivationalService } from './services/motivationalService';
-import { Bot, Sparkles, PlayCircle, BookOpen, Layers } from 'lucide-react';
+import { Bot, PlayCircle, Sparkles } from 'lucide-react';
 
 const MainApp: React.FC = () => {
   const { user, updateUserStats } = useAuth();
@@ -41,14 +41,14 @@ const MainApp: React.FC = () => {
   const [isFlipped, setIsFlipped] = useState(false);
   const [sessionCorrect, setSessionCorrect] = useState(0);
   const [sessionWrong, setSessionWrong] = useState(0);
-  const [sessionStartTime, setSessionStartTime] = useState<number>(Date.now());
+  const [sessionStartTime, setSessionStartTime] = useState<number>(() => Date.now());
   const [sessionDuration, setSessionDuration] = useState(0);
   const [missedCards, setMissedCards] = useState<Card[]>([]);
   const [filterLabel, setFilterLabel] = useState<string>('All Cards (SRS Priority)');
 
   // Analytics & History
   const [sessions, setSessions] = useState<SessionResult[]>(() => progressService.getSessions());
-  const stats = useMemo(() => progressService.getStats(), [sessions]);
+  const stats = useMemo(() => progressService.getStats(sessions), [sessions]);
   const peers = useMemo(() => progressService.getLeaderboard(), []);
   const achievements = useMemo(() => progressService.getAchievements(), []);
 
@@ -259,21 +259,61 @@ const MainApp: React.FC = () => {
         {currentTab === 'study' && (
           <div className="animate-in fade-in duration-200">
             {activeQueue.length === 0 ? (
-              <div className="glass-panel rounded-3xl p-12 text-center max-w-xl mx-auto border border-[var(--border-color)]">
-                <PlayCircle className="w-16 h-16 text-[var(--accent)] mx-auto mb-4 animate-bounce" />
-                <h2 className="text-2xl font-extrabold text-[var(--text-primary)] mb-2">
-                  Ready to Supercharge Your Memory?
-                </h2>
-                <p className="text-xs sm:text-sm text-[var(--text-muted)] mb-6 leading-relaxed">
-                  Our spaced repetition queue sorts cards by urgency, difficulty multiplier, and
-                  forgetting curve intervals.
-                </p>
-                <button
-                  onClick={() => startStudySession()}
-                  className="px-6 py-3.5 rounded-2xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-bold text-sm shadow-xl shadow-[var(--accent-glow)] transition-all hover:scale-105"
-                >
-                  Start Spaced Repetition Session (10 Cards)
-                </button>
+              <div className="max-w-3xl mx-auto space-y-6">
+                <div className="glass-panel rounded-3xl p-8 sm:p-10 text-center border border-[var(--border-color)] shadow-2xl">
+                  <PlayCircle className="w-14 h-14 text-[var(--accent)] mx-auto mb-3 animate-bounce" />
+                  <h2 className="text-2xl sm:text-3xl font-extrabold text-[var(--text-primary)] mb-2">
+                    Ready to Supercharge Your Memory?
+                  </h2>
+                  <p className="text-xs sm:text-sm text-[var(--text-muted)] mb-6 max-w-lg mx-auto leading-relaxed">
+                    Choose a focused subject deck or launch our adaptive 4D Spaced Repetition queue sorted by urgency, difficulty multiplier, and Leitner intervals.
+                  </p>
+                  <button
+                    onClick={() => startStudySession()}
+                    className="px-8 py-3.5 rounded-2xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-bold text-sm shadow-xl shadow-[var(--accent-glow)] transition-all hover:scale-105 flex items-center gap-2 mx-auto"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>Start All-Subject Session (SRS Priority)</span>
+                  </button>
+                </div>
+
+                {/* Subject-Specific Practice Decks */}
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-dim)] mb-3 px-1">
+                    Or Practice by Subject
+                  </h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {[
+                      { name: 'Python', desc: 'Comprehensions, GIL, Yield' },
+                      { name: 'JavaScript', desc: 'Event Loop, Closures, Async' },
+                      { name: 'TypeScript', desc: 'Generics, Discriminated Unions' },
+                      { name: 'React', desc: 'Hooks, Transitions, Cleanup' },
+                      { name: 'DSA', desc: 'Trees, LRU, Two Pointers' },
+                      { name: 'SQL', desc: 'B-Trees, ACID, Window Funcs' },
+                      { name: 'System Design', desc: 'CAP, Rate Limiting, Queues' },
+                      { name: 'DevOps', desc: 'Docker, Multi-Stage, Alpine' },
+                    ].map((subj) => {
+                      const subjCards = cards.filter((c) => c.language.toLowerCase() === subj.name.toLowerCase());
+                      return (
+                        <button
+                          key={subj.name}
+                          onClick={() => startStudySession(subjCards, `${subj.name} Deck`)}
+                          className="p-4 rounded-2xl glass-card text-left border border-[var(--border-color)] hover:border-[var(--accent)] transition-all group"
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-bold text-[var(--text-primary)] group-hover:text-[var(--accent)] transition-colors">
+                              {subj.name}
+                            </span>
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/5 text-[var(--text-dim)]">
+                              {subjCards.length}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-[var(--text-muted)] line-clamp-1">{subj.desc}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             ) : (
               <div>
@@ -285,6 +325,7 @@ const MainApp: React.FC = () => {
                   onOpenShortcuts={() => setShortcutsOpen(true)}
                   onExit={() => setCurrentTab('dashboard')}
                   filterLabel={filterLabel}
+                  sessionStartTime={sessionStartTime}
                 />
 
                 {currentCard && (
@@ -293,7 +334,7 @@ const MainApp: React.FC = () => {
                     isFlipped={isFlipped}
                     onFlip={() => setIsFlipped(!isFlipped)}
                     onGrade={handleGradeCard}
-                    onAskAI={(card) => {
+                    onAskAI={(_card) => {
                       setAiPanelOpen(true);
                     }}
                   />
@@ -406,7 +447,7 @@ const MainApp: React.FC = () => {
               message: `Successfully updated "${data.question}"`,
             });
           } else {
-            const created = cardService.addCard(data);
+            cardService.addCard(data);
             addToast({
               type: 'success',
               title: 'Card Created',

@@ -9,12 +9,13 @@ import {
   Filter,
   Edit2,
   Trash2,
-  Tag,
   Eye,
   EyeOff,
   Flame,
   Clock,
   RotateCcw,
+  Lightbulb,
+  Database,
 } from 'lucide-react';
 
 interface CardLibraryProps {
@@ -36,6 +37,25 @@ export const CardLibrary: React.FC<CardLibraryProps> = ({
   const [selectedLanguage, setSelectedLanguage] = useState('all');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [revealedCardIds, setRevealedCardIds] = useState<Set<string>>(new Set());
+  const [syncing, setSyncing] = useState(false);
+  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+
+  const handleSyncFirebase = async () => {
+    setSyncing(true);
+    setSyncFeedback(null);
+    try {
+      const res = await cardService.syncWithCloud();
+      setSyncFeedback(res.message);
+      if (res.success) {
+        onRefreshCards();
+      }
+    } catch {
+      setSyncFeedback('Sync failed. Please check network/rules.');
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncFeedback(null), 5000);
+    }
+  };
 
   const languages = useMemo(() => {
     const list = Array.from(new Set(cards.map((c) => c.language))).sort();
@@ -108,6 +128,16 @@ export const CardLibrary: React.FC<CardLibraryProps> = ({
 
           <div className="flex items-center gap-2.5 flex-wrap">
             <button
+              onClick={handleSyncFirebase}
+              disabled={syncing}
+              className="px-3.5 py-2 rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-bold flex items-center gap-1.5 transition-all hover:scale-105"
+              title="Sync cards with Firebase Cloud Firestore"
+            >
+              <Database className={`w-3.5 h-3.5 text-amber-400 ${syncing ? 'animate-spin' : ''}`} />
+              <span>{syncing ? 'Syncing...' : 'Sync Firebase'}</span>
+            </button>
+
+            <button
               onClick={handleResetDefaults}
               className="px-3 py-2 rounded-xl border border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-white/20 text-xs font-semibold flex items-center gap-1.5 transition-colors"
               title="Reset default flashcards"
@@ -135,6 +165,13 @@ export const CardLibrary: React.FC<CardLibraryProps> = ({
             )}
           </div>
         </div>
+
+        {syncFeedback && (
+          <div className="mb-4 px-4 py-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-200 text-xs font-medium flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
+            <Database className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>{syncFeedback}</span>
+          </div>
+        )}
 
         {/* Filters */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -181,8 +218,29 @@ export const CardLibrary: React.FC<CardLibraryProps> = ({
           </div>
         </div>
 
+        {/* Quick Subject Filter Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto py-2 no-scrollbar">
+          {languages.map((lang) => {
+            const isSelected = selectedLanguage.toLowerCase() === lang.toLowerCase();
+            const count = lang === 'all' ? cards.length : cards.filter((c) => c.language.toLowerCase() === lang.toLowerCase()).length;
+            return (
+              <button
+                key={lang}
+                onClick={() => setSelectedLanguage(lang)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+                  isSelected
+                    ? 'bg-[var(--accent)] text-white shadow-sm shadow-[var(--accent-glow)]'
+                    : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] border border-[var(--border-color)]'
+                }`}
+              >
+                {lang === 'all' ? 'All Subjects' : lang} ({count})
+              </button>
+            );
+          })}
+        </div>
+
         {/* Status Count */}
-        <div className="flex items-center justify-between mt-4 pt-3 border-t border-[var(--border-color)] text-xs text-[var(--text-dim)]">
+        <div className="flex items-center justify-between mt-2 pt-3 border-t border-[var(--border-color)] text-xs text-[var(--text-dim)]">
           <span>
             Showing <strong className="text-[var(--text-primary)]">{filteredCards.length}</strong> of{' '}
             {cards.length} flashcards
@@ -232,6 +290,11 @@ export const CardLibrary: React.FC<CardLibraryProps> = ({
                     </div>
 
                     <div className="flex items-center gap-2 text-[10px] font-mono text-[var(--text-dim)]">
+                      {card.hint && (
+                        <span className="flex items-center gap-0.5 text-amber-400" title={`Hint: ${card.hint}`}>
+                          <Lightbulb className="w-3 h-3" />
+                        </span>
+                      )}
                       <span className="flex items-center gap-0.5" title="Difficulty">
                         <Flame className="w-3 h-3 text-amber-400" />
                         {card.difficulty.toFixed(1)}x

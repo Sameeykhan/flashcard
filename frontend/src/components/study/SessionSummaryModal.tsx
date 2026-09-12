@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Trophy, CheckCircle2, XCircle, RotateCcw, LayoutDashboard, Sparkles, Award } from 'lucide-react';
+import { Trophy, RotateCcw, LayoutDashboard } from 'lucide-react';
 import { useSound } from '../../context/SoundContext';
 import { useTheme } from '../../context/ThemeContext';
 import confetti from 'canvas-confetti';
@@ -47,11 +47,11 @@ export const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
           particleCount: 80,
           spread: 80,
           origin: { y: 0.6 },
-          colors: ['#6366f1', '#10b981', '#fbbf24', '#f43f5e', '#38bdf8'],
+          colors: ['#6366f1', '#10b981', '#fbbf24', '#f43f5e', '#38bdf8', '#e1306c', '#25d366'],
         });
       }
     }
-  }, [isOpen, reducedMotion]);
+  }, [isOpen, reducedMotion, playSuccess]);
 
   if (!isOpen) return null;
 

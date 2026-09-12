@@ -1,7 +1,8 @@
 import { Card } from '../types';
 import { initialCards } from './mockData';
+import { firebaseSyncService } from './firebaseSyncService';
 
-const STORAGE_KEY = 'codecards_library_v1';
+const STORAGE_KEY = 'codecards_library_v2';
 
 export const cardService = {
   getCards(): Card[] {
@@ -11,8 +12,18 @@ export const cardService = {
       return initialCards;
     }
     try {
-      return JSON.parse(raw);
+      const stored: Card[] = JSON.parse(raw);
+      // Auto-merge any new default cards that aren't yet present
+      const existingIds = new Set(stored.map((c) => c.id));
+      const missingDefaults = initialCards.filter((c) => !existingIds.has(c.id));
+      if (missingDefaults.length > 0) {
+        const merged = [...stored, ...missingDefaults];
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+        return merged;
+      }
+      return stored;
     } catch {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(initialCards));
       return initialCards;
     }
   },
@@ -40,6 +51,8 @@ export const cardService = {
     };
     const updated = [newCard, ...cards];
     this.saveCards(updated);
+    // Background cloud sync to Firestore
+    firebaseSyncService.saveCardToCloud(newCard).catch(() => {});
     return newCard;
   },
 
@@ -47,12 +60,79 @@ export const cardService = {
     const cards = this.getCards();
     const updated = cards.map((c) => (c.id === card.id ? card : c));
     this.saveCards(updated);
+    // Background cloud sync to Firestore
+    firebaseSyncService.saveCardToCloud(card).catch(() => {});
   },
 
   deleteCard(id: string): void {
     const cards = this.getCards();
     const updated = cards.filter((c) => c.id !== id);
     this.saveCards(updated);
+    // Background cloud sync to Firestore
+    firebaseSyncService.deleteCardFromCloud(id).catch(() => {});
+  },
+
+  /**
+   * Reconcile local cards with Firebase Firestore
+   */
+  async syncWithCloud(): Promise<{ success: boolean; message: string; count: number }> {
+    const localCards = this.getCards();
+    const result = await firebaseSyncService.fetchCardsFromCloud();
+    if (result.success && result.cards.length > 0) {
+      // Merge remote cards into local
+      const localMap = new Map(localCards.map((c) => [c.id, c]));
+      result.cards.forEach((rc) => {
+        localMap.set(rc.id, rc);
+      });
+      const merged = Array.from(localMap.values());
+      this.saveCards(merged);
+      return {
+        success: true,
+        message: `Synced ${result.cards.length} cards from Firebase Database`,
+        count: merged.length,
+      };
+    } else if (result.success && result.cards.length === 0) {
+      // Cloud collection is empty, push local cards to populate Firestore
+      const uploadRes = await firebaseSyncService.uploadAllCardsToCloud(localCards);
+      if (uploadRes.success) {
+        return {
+          success: true,
+          message: `Uploaded ${uploadRes.count} cards to Firebase database!`,
+          count: uploadRes.count,
+        };
+      }
+      return {
+        success: false,
+        message: uploadRes.error || 'Failed to initialize Firebase database',
+        count: localCards.length,
+      };
+    } else {
+      return {
+        success: false,
+        message: result.error || 'Could not connect to Firebase',
+        count: localCards.length,
+      };
+    }
+  },
+
+  /**
+   * Push all local cards to Firebase Firestore
+   */
+  async pushAllToCloud(): Promise<{ success: boolean; message: string; count: number }> {
+    const localCards = this.getCards();
+    const uploadRes = await firebaseSyncService.uploadAllCardsToCloud(localCards);
+    if (uploadRes.success) {
+      return {
+        success: true,
+        message: `Uploaded ${uploadRes.count} cards to Firebase database!`,
+        count: uploadRes.count,
+      };
+    }
+    return {
+      success: false,
+      message: uploadRes.error || 'Failed to upload cards to Firebase',
+      count: 0,
+    };
   },
 
   filterCards(

@@ -1,5 +1,6 @@
 import { SessionResult, MarkStats, PeerRank, Achievement } from '../types';
 import { initialSessions, initialLeaderboard, initialAchievements } from './mockData';
+import { firebaseSyncService } from './firebaseSyncService';
 
 const SESSIONS_KEY = 'codecards_sessions_v1';
 
@@ -21,10 +22,12 @@ export const progressService = {
     const sessions = this.getSessions();
     const updated = [result, ...sessions];
     localStorage.setItem(SESSIONS_KEY, JSON.stringify(updated));
+    // Background cloud sync to Firestore
+    firebaseSyncService.saveSessionToCloud(result).catch(() => {});
   },
 
-  getStats(): MarkStats {
-    const sessions = this.getSessions();
+  getStats(sessionsList?: SessionResult[]): MarkStats {
+    const sessions = sessionsList ?? this.getSessions();
 
     if (sessions.length === 0) {
       return {

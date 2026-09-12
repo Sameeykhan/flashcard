@@ -1,6 +1,6 @@
 import React from 'react';
 import { SessionResult } from '../../types';
-import { History, Clock, Check, X, Calendar } from 'lucide-react';
+import { History, Clock, Calendar } from 'lucide-react';
 
 interface SessionHistoryProps {
   sessions: SessionResult[];

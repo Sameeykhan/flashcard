@@ -113,6 +113,50 @@
   --shadow-color: rgba(10, 20, 15, 0.4);
 }
 
+/* 5. Sunset Fuchsia Theme (Dark Twilight with Vibrant Sunset Radiant Glow) */
+[data-theme="sunset"],
+[data-theme="instagram"] {
+  --bg-primary: #0d0614;
+  --bg-secondary: #170924;
+  --bg-card: rgba(29, 13, 44, 0.88);
+  --bg-card-hover: rgba(43, 19, 66, 0.94);
+  --text-primary: #fff0f7;
+  --text-muted: #e7b5d8;
+  --text-dim: #a4769a;
+  --border-color: rgba(225, 48, 108, 0.32);
+  --border-highlight: rgba(247, 119, 55, 0.7);
+  --accent: #e1306c;
+  --accent-hover: #c13584;
+  --accent-glow: rgba(225, 48, 108, 0.45);
+  --color-correct: #22c55e;
+  --color-wrong: #ff0055;
+  --color-warning: #f77737;
+  --glass-border: rgba(225, 48, 108, 0.2);
+  --shadow-color: rgba(225, 48, 108, 0.2);
+}
+
+/* 6. Emerald Mint Theme (Forest Charcoal with Vibrant Emerald & Mint Accents) */
+[data-theme="emerald"],
+[data-theme="whatsapp"] {
+  --bg-primary: #0b141a;
+  --bg-secondary: #111b21;
+  --bg-card: rgba(17, 27, 33, 0.92);
+  --bg-card-hover: rgba(32, 44, 51, 0.96);
+  --text-primary: #e9edef;
+  --text-muted: #8696a0;
+  --text-dim: #667781;
+  --border-color: rgba(37, 211, 102, 0.26);
+  --border-highlight: rgba(0, 168, 132, 0.7);
+  --accent: #25d366;
+  --accent-hover: #128c7e;
+  --accent-glow: rgba(37, 211, 102, 0.4);
+  --color-correct: #25d366;
+  --color-wrong: #ef4444;
+  --color-warning: #fbbf24;
+  --glass-border: rgba(37, 211, 102, 0.16);
+  --shadow-color: rgba(11, 20, 26, 0.6);
+}
+
 /* --------------------------------------------------------------------------
    Global Layout & Typography
    -------------------------------------------------------------------------- */
@@ -307,9 +351,114 @@ code, pre, .font-mono {
   color: #fee440;
 }
 
-/* 3D Tilt container */
+/* Sunset Fuchsia theme overrides for syntax highlighting */
+[data-theme="sunset"] .token.keyword,
+[data-theme="instagram"] .token.keyword {
+  color: #f77737;
+  font-weight: 700;
+}
+[data-theme="sunset"] .token.function,
+[data-theme="instagram"] .token.function {
+  color: #e1306c;
+}
+[data-theme="sunset"] .token.string,
+[data-theme="instagram"] .token.string {
+  color: #ffc233;
+}
+[data-theme="sunset"] .token.class-name,
+[data-theme="instagram"] .token.class-name {
+  color: #c13584;
+}
+
+/* Emerald Mint theme overrides for syntax highlighting */
+[data-theme="emerald"] .token.keyword,
+[data-theme="whatsapp"] .token.keyword {
+  color: #25d366;
+  font-weight: 700;
+}
+[data-theme="emerald"] .token.function,
+[data-theme="whatsapp"] .token.function {
+  color: #00a884;
+}
+[data-theme="emerald"] .token.string,
+[data-theme="whatsapp"] .token.string {
+  color: #53bdeb;
+}
+[data-theme="emerald"] .token.class-name,
+[data-theme="whatsapp"] .token.class-name {
+  color: #25d366;
+}
+
+/* --------------------------------------------------------------------------
+   4D Dynamic Holographic & Depth Effects
+   -------------------------------------------------------------------------- */
+
 .tilt-card {
   transform-style: preserve-3d;
   will-change: transform;
+}
+
+/* 4D Holographic Sheen Layer */
+.holographic-sheen {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    rgba(255, 255, 255, 0.16) 0%,
+    rgba(255, 255, 255, 0.05) 35%,
+    transparent 70%
+  );
+  opacity: 0.85;
+  mix-blend-mode: overlay;
+  transition: opacity 0.3s ease;
+  z-index: 10;
+}
+
+[data-theme="sunset"] .holographic-sheen,
+[data-theme="instagram"] .holographic-sheen {
+  background: radial-gradient(
+    circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    rgba(254, 218, 117, 0.22) 0%,
+    rgba(225, 48, 108, 0.18) 40%,
+    rgba(131, 58, 180, 0.08) 65%,
+    transparent 80%
+  );
+}
+
+[data-theme="emerald"] .holographic-sheen,
+[data-theme="whatsapp"] .holographic-sheen {
+  background: radial-gradient(
+    circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    rgba(37, 211, 102, 0.25) 0%,
+    rgba(0, 168, 132, 0.14) 45%,
+    transparent 75%
+  );
+}
+
+/* 4D Depth Layers */
+.depth-layer-1 {
+  transform: translateZ(20px);
+}
+.depth-layer-2 {
+  transform: translateZ(40px);
+}
+.depth-layer-3 {
+  transform: translateZ(60px);
+}
+
+/* Pulse Aura */
+@keyframes aura-pulse {
+  0%, 100% {
+    box-shadow: 0 0 25px -5px var(--accent-glow);
+  }
+  50% {
+    box-shadow: 0 0 45px 5px var(--accent-glow);
+  }
+}
+
+.aura-glow {
+  animation: aura-pulse 3.5s ease-in-out infinite;
 }
 

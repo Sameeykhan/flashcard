@@ -1,5 +1,5 @@
-import React from 'react';
-import { HelpCircle, X, Check, ArrowLeft } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { HelpCircle, X, Check, ArrowLeft, Clock } from 'lucide-react';
 
 interface StudyHeaderProps {
   currentIndex: number;
@@ -9,6 +9,7 @@ interface StudyHeaderProps {
   onOpenShortcuts: () => void;
   onExit: () => void;
   filterLabel?: string;
+  sessionStartTime?: number;
 }
 
 export const StudyHeader: React.FC<StudyHeaderProps> = ({
@@ -19,7 +20,23 @@ export const StudyHeader: React.FC<StudyHeaderProps> = ({
   onOpenShortcuts,
   onExit,
   filterLabel,
+  sessionStartTime,
 }) => {
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  useEffect(() => {
+    if (!sessionStartTime) return;
+    const interval = setInterval(() => {
+      setElapsedSeconds(Math.max(0, Math.floor((Date.now() - sessionStartTime) / 1000)));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [sessionStartTime]);
+
+  const formatTime = (secs: number) => {
+    const mins = Math.floor(secs / 60);
+    const remainder = secs % 60;
+    return `${mins}:${remainder.toString().padStart(2, '0')}`;
+  };
   const answeredTotal = correctCount + wrongCount;
   const accuracyPct = answeredTotal > 0 ? Math.round((correctCount / answeredTotal) * 100) : 100;
   const progressPct = totalCards > 0 ? Math.round(((currentIndex) / totalCards) * 100) : 0;
@@ -62,7 +79,13 @@ export const StudyHeader: React.FC<StudyHeaderProps> = ({
             <span className="text-[var(--text-dim)] font-mono">of {totalCards}</span>
           </div>
 
-          <div className="flex items-center gap-4 text-xs font-mono">
+          <div className="flex items-center gap-3 text-xs font-mono">
+            {sessionStartTime && (
+              <span className="flex items-center gap-1 text-[var(--accent)] font-semibold" title="Focus Session Elapsed Time">
+                <Clock className="w-3.5 h-3.5 animate-pulse" />
+                {formatTime(elapsedSeconds)}
+              </span>
+            )}
             <span className="flex items-center gap-1 text-emerald-400 font-bold">
               <Check className="w-3.5 h-3.5" />
               {correctCount}

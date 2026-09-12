@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bot, X, Send, Sparkles, AlertCircle, Lightbulb, Code2, HelpCircle } from 'lucide-react';
+import { Bot, X, Send, Sparkles, AlertCircle, Lightbulb, Code2 } from 'lucide-react';
 import { AIMessage, Card } from '../../types';
 import { aiService } from '../../services/aiService';
 

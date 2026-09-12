@@ -1,6 +1,6 @@
 import React from 'react';
 import { Achievement } from '../../types';
-import { Award, Lock, Sparkles } from 'lucide-react';
+import { Award, Lock } from 'lucide-react';
 
 interface BadgesCardProps {
   achievements: Achievement[];

@@ -13,6 +13,9 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
     { key: 'Space / Enter', action: 'Flip card to reveal answer / question' },
     { key: '1 or Y', action: 'Grade as "Got It Right" (Advance SRS level)' },
     { key: '2 or N', action: 'Grade as "Missed It" (Reset to Day 1 review)' },
+    { key: 'H', action: 'Toggle Hint / Clue' },
+    { key: 'S', action: 'Toggle Active Recall Scratchpad' },
+    { key: 'R', action: 'Toggle Voice Reader (Read Aloud TTS)' },
     { key: 'A', action: 'Open AI Assistant / Explain card' },
     { key: 'Esc', action: 'Close dialog / panel' },
   ];

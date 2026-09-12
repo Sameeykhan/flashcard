@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Layers,
   Sparkles,
@@ -14,11 +14,13 @@ import {
   Trophy,
   LayoutDashboard,
   PlayCircle,
+  Database,
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useSound } from '../../context/SoundContext';
 import { useAuth } from '../../context/AuthContext';
 import { ThemeMode } from '../../types';
+import { firebaseSyncService, CloudSyncState } from '../../services/firebaseSyncService';
 
 interface NavbarProps {
   currentTab: 'dashboard' | 'study' | 'library' | 'leaderboard';
@@ -32,10 +34,22 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
   const { user, isAuthenticated, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [themeDropdownOpen, setThemeDropdownOpen] = useState(false);
+  const [syncState, setSyncState] = useState<CloudSyncState>(firebaseSyncService.state);
+
+  useEffect(() => {
+    const unsubscribe = firebaseSyncService.subscribe((state) => {
+      setSyncState(state);
+    });
+    // Test initial connection
+    firebaseSyncService.testConnection().catch(() => {});
+    return () => unsubscribe();
+  }, []);
 
   const themeLabels: Record<ThemeMode, { name: string; color: string }> = {
     dark: { name: 'Dark Slate', color: '#6366f1' },
     light: { name: 'Light Modern', color: '#4f46e5' },
+    sunset: { name: 'Sunset Fuchsia', color: '#e1306c' },
+    emerald: { name: 'Emerald Mint', color: '#25d366' },
     neon: { name: 'Cyber Neon', color: '#00f5d4' },
     nature: { name: 'Nature Calm', color: '#52b788' },
   };
@@ -132,7 +146,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
                 title="Switch Theme"
               >
                 <Palette className="w-3.5 h-3.5 text-[var(--accent)]" />
-                <span className="capitalize text-xs font-semibold">{theme}</span>
+                <span className="text-xs font-semibold">{themeLabels[theme]?.name || theme}</span>
               </button>
 
               {themeDropdownOpen && (
@@ -173,6 +187,31 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
                 </div>
               )}
             </div>
+
+            {/* Firebase Database Status Badge */}
+            <button
+              onClick={() => {
+                firebaseSyncService.testConnection().catch(() => {});
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[var(--border-color)] text-xs font-medium text-[var(--text-primary)] hover:border-[var(--border-highlight)] transition-colors"
+              title={`Firebase Database: ${syncState.projectId}\nStatus: ${syncState.message}\nClick to re-check connection`}
+            >
+              <Database className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden xl:inline text-[11px] font-mono text-[var(--text-muted)]">
+                Firebase
+              </span>
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  syncState.status === 'connected'
+                    ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse'
+                    : syncState.status === 'syncing'
+                    ? 'bg-amber-400 animate-spin'
+                    : syncState.status === 'error'
+                    ? 'bg-amber-500'
+                    : 'bg-slate-400'
+                }`}
+              />
+            </button>
 
             {/* User Streak & Profile */}
             {isAuthenticated && user ? (
@@ -258,7 +297,16 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
               className="flex items-center gap-2 text-xs font-medium text-[var(--text-muted)]"
             >
               <Palette className="w-4 h-4 text-[var(--accent)]" />
-              <span>Theme: {theme}</span>
+              <span>Theme: {themeLabels[theme]?.name || theme}</span>
+            </button>
+            <button
+              onClick={() => {
+                firebaseSyncService.testConnection().catch(() => {});
+              }}
+              className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-muted)]"
+            >
+              <Database className="w-3.5 h-3.5 text-amber-400" />
+              <span>DB: {syncState.status === 'connected' ? 'Connected' : syncState.status}</span>
             </button>
             <button
               onClick={toggleSound}
