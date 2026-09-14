@@ -14,9 +14,17 @@ interface CodeBlockProps {
   code: string;
   language: string;
   showLineNumbers?: boolean;
+  compact?: boolean;
+  maxHeight?: string;
 }
 
-export const CodeBlock: React.FC<CodeBlockProps> = ({ code, language, showLineNumbers = true }) => {
+export const CodeBlock: React.FC<CodeBlockProps> = ({
+  code,
+  language,
+  showLineNumbers = true,
+  compact = false,
+  maxHeight,
+}) => {
   const [copied, setCopied] = useState(false);
   const codeRef = useRef<HTMLElement>(null);
 
@@ -57,22 +65,54 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ code, language, showLineNu
 
   const lines = code.trim().split('\n');
 
+  if (compact) {
+    return (
+      <div className="relative group my-1.5 rounded-xl overflow-hidden border border-[var(--color-code-border)] bg-[var(--color-code-bg)] text-left transition-colors">
+        <button
+          onClick={handleCopy}
+          className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] text-[10px] flex items-center gap-1 shadow-sm"
+          title="Copy code"
+        >
+          {copied ? (
+            <>
+              <Check className="w-3 h-3 text-emerald-500" />
+              <span className="text-emerald-500 font-medium">Copied</span>
+            </>
+          ) : (
+            <Copy className="w-3 h-3" />
+          )}
+        </button>
+
+        <div
+          className="p-3.5 overflow-x-auto text-[11px] font-mono leading-relaxed scrollbar-thin text-[var(--color-code-text)]"
+          style={{ maxHeight: maxHeight || 'none' }}
+        >
+          <pre className="m-0 overflow-visible font-mono">
+            <code ref={codeRef} className={`language-${normalizedLang}`}>
+              {code.trim()}
+            </code>
+          </pre>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="relative group my-2 rounded-xl overflow-hidden border border-[var(--border-color)] bg-[#0d1117] text-left shadow-lg">
-      <div className="flex items-center justify-between px-3.5 py-1.5 bg-[#161b22] border-b border-[var(--border-color)] text-xs text-gray-400 font-mono">
-        <span className="flex items-center gap-1.5 uppercase font-bold tracking-wider text-[11px] text-[var(--accent)]">
-          <span className="w-2 h-2 rounded-full bg-[var(--accent)] inline-block"></span>
+    <div className="relative group my-2 rounded-xl overflow-hidden border border-[var(--color-code-border)] bg-[var(--color-code-bg)] text-left shadow-sm transition-colors">
+      <div className="flex items-center justify-between px-3.5 py-2 bg-[var(--color-code-header)] border-b border-[var(--color-code-border)] text-xs text-[var(--color-text-secondary)] font-mono">
+        <span className="flex items-center gap-1.5 uppercase font-bold tracking-wider text-[10px] text-[var(--color-accent)]">
+          <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] inline-block"></span>
           {language}
         </span>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1 px-2 py-0.5 rounded hover:bg-white/10 text-gray-300 hover:text-white transition-colors text-[11px]"
+          className="flex items-center gap-1 px-2 py-0.5 rounded hover:bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors text-[11px]"
           title="Copy code snippet"
         >
           {copied ? (
             <>
-              <Check className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-emerald-400">Copied!</span>
+              <Check className="w-3.5 h-3.5 text-emerald-500" />
+              <span className="text-emerald-500">Copied!</span>
             </>
           ) : (
             <>
@@ -83,9 +123,12 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ code, language, showLineNu
         </button>
       </div>
 
-      <div className="flex p-3 overflow-x-auto text-sm font-mono leading-relaxed">
+      <div
+        className="flex p-3.5 overflow-x-auto text-xs font-mono leading-relaxed scrollbar-thin text-[var(--color-code-text)]"
+        style={{ maxHeight: maxHeight || 'none' }}
+      >
         {showLineNumbers && (
-          <div className="select-none pr-3 text-right text-gray-600 font-mono text-xs border-r border-gray-800 flex flex-col">
+          <div className="select-none pr-3 text-right text-[var(--color-text-tertiary)] font-mono text-xs border-r border-[var(--color-border)] flex flex-col">
             {lines.map((_, i) => (
               <span key={i} className="leading-relaxed">
                 {i + 1}
@@ -93,7 +136,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ code, language, showLineNu
             ))}
           </div>
         )}
-        <pre className="pl-3 m-0 overflow-visible">
+        <pre className="pl-3 m-0 overflow-visible font-mono">
           <code ref={codeRef} className={`language-${normalizedLang}`}>
             {code.trim()}
           </code>

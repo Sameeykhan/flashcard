@@ -13,15 +13,21 @@ export const cardService = {
     }
     try {
       const stored: Card[] = JSON.parse(raw);
+      // Filter out invalid/empty or temporary "test" cards from previous trials
+      const cleaned = stored.filter((c) => {
+        const q = c.question?.trim().toLowerCase();
+        return q && q !== 'test' && q !== 'testing' && c.answer?.trim();
+      });
+
       // Auto-merge any new default cards that aren't yet present
-      const existingIds = new Set(stored.map((c) => c.id));
+      const existingIds = new Set(cleaned.map((c) => c.id));
       const missingDefaults = initialCards.filter((c) => !existingIds.has(c.id));
-      if (missingDefaults.length > 0) {
-        const merged = [...stored, ...missingDefaults];
+      if (missingDefaults.length > 0 || cleaned.length !== stored.length) {
+        const merged = [...cleaned, ...missingDefaults];
         localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
         return merged;
       }
-      return stored;
+      return cleaned;
     } catch {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(initialCards));
       return initialCards;

@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Card } from '../../types';
 import { cardService } from '../../services/cardService';
 import { CodeBlock } from '../common/CodeBlock';
+import { getCategoryToken } from '../../utils/categoryColors';
 import {
   Search,
   Plus,
@@ -16,6 +17,10 @@ import {
   RotateCcw,
   Lightbulb,
   Database,
+  LayoutGrid,
+  List,
+  X,
+  ChevronDown,
 } from 'lucide-react';
 
 interface CardLibraryProps {
@@ -25,6 +30,8 @@ interface CardLibraryProps {
   onAddNewCard: () => void;
   onStartStudyWithFilter: (filteredCards: Card[], label: string) => void;
 }
+
+type SortOption = 'srs' | 'diff-desc' | 'diff-asc' | 'level-desc' | 'newest' | 'alpha';
 
 export const CardLibrary: React.FC<CardLibraryProps> = ({
   cards,
@@ -36,7 +43,10 @@ export const CardLibrary: React.FC<CardLibraryProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState('all');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [sortBy, setSortBy] = useState<SortOption>('srs');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [revealedCardIds, setRevealedCardIds] = useState<Set<string>>(new Set());
+  const [expandedCodeIds, setExpandedCodeIds] = useState<Set<string>>(new Set());
   const [syncing, setSyncing] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
 
@@ -50,10 +60,10 @@ export const CardLibrary: React.FC<CardLibraryProps> = ({
         onRefreshCards();
       }
     } catch {
-      setSyncFeedback('Sync failed. Please check network/rules.');
+      setSyncFeedback('Sync failed. Please check network or Firebase settings.');
     } finally {
       setSyncing(false);
-      setTimeout(() => setSyncFeedback(null), 5000);
+      setTimeout(() => setSyncFeedback(null), 4000);
     }
   };
 
@@ -67,19 +77,51 @@ export const CardLibrary: React.FC<CardLibraryProps> = ({
     return ['all', ...list];
   }, [cards]);
 
-  const filteredCards = useMemo(() => {
-    return cardService.filterCards(
+  const filteredAndSortedCards = useMemo(() => {
+    const filtered = cardService.filterCards(
       cards,
       searchQuery,
       selectedLanguage,
       selectedCategory,
       'all'
     );
-  }, [cards, searchQuery, selectedLanguage, selectedCategory]);
+
+    return [...filtered].sort((a, b) => {
+      switch (sortBy) {
+        case 'srs': {
+          const timeA = a.next_due ? new Date(a.next_due).getTime() : 0;
+          const timeB = b.next_due ? new Date(b.next_due).getTime() : 0;
+          return timeA - timeB;
+        }
+        case 'diff-desc':
+          return b.difficulty - a.difficulty;
+        case 'diff-asc':
+          return a.difficulty - b.difficulty;
+        case 'level-desc':
+          return b.interval_level - a.interval_level;
+        case 'newest':
+          return b.id.localeCompare(a.id);
+        case 'alpha':
+          return a.question.localeCompare(b.question);
+        default:
+          return 0;
+      }
+    });
+  }, [cards, searchQuery, selectedLanguage, selectedCategory, sortBy]);
 
   const toggleReveal = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setRevealedCardIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleCodeExpand = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpandedCodeIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -102,158 +144,271 @@ export const CardLibrary: React.FC<CardLibraryProps> = ({
         : selectedCategory !== 'all'
         ? `${selectedCategory} Deck`
         : 'Filtered Library';
-    onStartStudyWithFilter(filteredCards, label);
+    onStartStudyWithFilter(filteredAndSortedCards, label);
+  };
+
+  const handleStudySingle = (card: Card, e: React.MouseEvent) => {
+    e.stopPropagation();
+    onStartStudyWithFilter([card], `${card.language}: Single Practice`);
   };
 
   const handleResetDefaults = () => {
-    if (confirm('Reset flashcard deck to the default collection?')) {
+    if (confirm('Reset flashcard deck to the original 33 curated questions?')) {
       cardService.resetToDefault();
       onRefreshCards();
     }
   };
 
+  const hasActiveFilters = searchQuery.trim() !== '' || selectedLanguage !== 'all' || selectedCategory !== 'all';
+
   return (
-    <div className="w-full max-w-7xl mx-auto">
-      {/* Top Header & Search Bar */}
-      <div className="glass-panel rounded-3xl p-6 border border-[var(--border-color)] mb-6 shadow-xl">
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 mb-6">
-          <div>
-            <h2 className="text-2xl font-extrabold tracking-tight text-[var(--text-primary)]">
-              Card Library & Deck Manager
-            </h2>
-            <p className="text-xs text-[var(--text-muted)] mt-0.5">
-              Browse, search, edit snippets, or launch focused practice
-            </p>
+    <div className="w-full max-w-7xl mx-auto space-y-6">
+      {/* 1. Header Section with Standardized Button Hierarchy */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[var(--color-text-primary)]">
+              Card Library
+            </h1>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[var(--color-accent-subtle)] text-[var(--color-accent)] border border-[var(--color-accent)]/20">
+              {cards.length} Cards
+            </span>
           </div>
-
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <button
-              onClick={handleSyncFirebase}
-              disabled={syncing}
-              className="px-3.5 py-2 rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-bold flex items-center gap-1.5 transition-all hover:scale-105"
-              title="Sync cards with Firebase Cloud Firestore"
-            >
-              <Database className={`w-3.5 h-3.5 text-amber-400 ${syncing ? 'animate-spin' : ''}`} />
-              <span>{syncing ? 'Syncing...' : 'Sync Firebase'}</span>
-            </button>
-
-            <button
-              onClick={handleResetDefaults}
-              className="px-3 py-2 rounded-xl border border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-white/20 text-xs font-semibold flex items-center gap-1.5 transition-colors"
-              title="Reset default flashcards"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Reset Defaults</span>
-            </button>
-
-            <button
-              onClick={onAddNewCard}
-              className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-[var(--accent-glow)] transition-all hover:scale-105"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add Flashcard</span>
-            </button>
-
-            {filteredCards.length > 0 && (
-              <button
-                onClick={handleStudyFiltered}
-                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-emerald-600/30 transition-all hover:scale-105"
-              >
-                <Play className="w-3.5 h-3.5 fill-white" />
-                <span>Study Filtered ({filteredCards.length})</span>
-              </button>
-            )}
-          </div>
+          <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] mt-1">
+            Browse, filter by category, and review your spaced repetition queue.
+          </p>
         </div>
 
-        {syncFeedback && (
-          <div className="mb-4 px-4 py-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-200 text-xs font-medium flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
-            <Database className="w-4 h-4 text-amber-400 shrink-0" />
-            <span>{syncFeedback}</span>
-          </div>
-        )}
+        {/* Action Controls: Primary, Secondary, Tertiary/Ghost hierarchy */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {/* Tertiary / Ghost Button 1 */}
+          <button
+            onClick={handleSyncFirebase}
+            disabled={syncing}
+            className="px-3 py-2 rounded-xl text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-secondary)] text-xs font-medium flex items-center gap-1.5 transition-colors border border-transparent hover:border-[var(--color-border)]"
+            title="Sync cards with Firebase Cloud Firestore"
+          >
+            <Database className={`w-3.5 h-3.5 text-amber-500 ${syncing ? 'animate-spin' : ''}`} />
+            <span>{syncing ? 'Syncing...' : 'Sync Cloud'}</span>
+          </button>
 
-        {/* Filters */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Tertiary / Ghost Button 2 */}
+          <button
+            onClick={handleResetDefaults}
+            className="px-3 py-2 rounded-xl text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-secondary)] text-xs font-medium flex items-center gap-1.5 transition-colors border border-transparent hover:border-[var(--color-border)]"
+            title="Reset deck to original 33 questions"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Reset Deck</span>
+          </button>
+
+          {/* Secondary CTA */}
+          <button
+            onClick={onAddNewCard}
+            className="px-3.5 py-2 rounded-xl bg-[var(--color-surface)] hover:bg-[var(--color-surface-secondary)] border border-[var(--color-border)] hover:border-[var(--color-border-hover)] text-[var(--color-text-primary)] text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all"
+          >
+            <Plus className="w-4 h-4 text-[var(--color-accent)]" />
+            <span>Add Card</span>
+          </button>
+
+          {/* Primary CTA */}
+          {filteredAndSortedCards.length > 0 && (
+            <button
+              onClick={handleStudyFiltered}
+              className="px-4 py-2 rounded-xl bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-[var(--color-accent-subtle)] transition-all hover:scale-[1.02]"
+            >
+              <Play className="w-3.5 h-3.5 fill-white" />
+              <span>Study ({filteredAndSortedCards.length})</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Sync Feedback Toast Banner */}
+      {syncFeedback && (
+        <div className="px-4 py-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 text-xs font-medium flex items-center gap-2 animate-in fade-in duration-200">
+          <Database className="w-4 h-4 text-amber-500 shrink-0" />
+          <span>{syncFeedback}</span>
+        </div>
+      )}
+
+      {/* 2. Unified Filter & Control Bar with Standardized Heights (h-10) and Gaps */}
+      <div className="glass-panel rounded-2xl p-4 sm:p-5 border border-[var(--color-border)] shadow-sm space-y-3.5">
+        {/* Top Controls Row: Equalized h-10 height & gap-3 */}
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
           {/* Search Input */}
-          <div className="relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-dim)]" />
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)]" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search questions, answers, code, tags..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
+              placeholder="Search questions, code snippets, tags..."
+              className="w-full h-10 pl-10 pr-9 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] text-xs text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:outline-none focus:border-[var(--color-accent)] transition-colors"
             />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] p-0.5"
+                title="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
-          {/* Language Selector */}
-          <div className="relative">
-            <select
-              value={selectedLanguage}
-              onChange={(e) => setSelectedLanguage(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] capitalize"
-            >
-              {languages.map((l) => (
-                <option key={l} value={l}>
-                  {l === 'all' ? 'All Languages' : l}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Category Selector */}
-          <div className="relative">
+          {/* Category Dropdown */}
+          <div className="w-full lg:w-44">
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] capitalize"
+              className="w-full h-10 px-3 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] text-xs text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)] capitalize cursor-pointer transition-colors"
             >
               {categories.map((c) => (
-                <option key={c} value={c}>
+                <option key={c} value={c} className="bg-[var(--color-surface)] text-[var(--color-text-primary)]">
                   {c === 'all' ? 'All Categories' : c}
                 </option>
               ))}
             </select>
           </div>
+
+          {/* Sort By Dropdown */}
+          <div className="w-full lg:w-48">
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortOption)}
+              className="w-full h-10 px-3 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] text-xs text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)] cursor-pointer transition-colors"
+            >
+              <option value="srs" className="bg-[var(--color-surface)] text-[var(--color-text-primary)]">
+                Sort: Due Date (SRS)
+              </option>
+              <option value="diff-desc" className="bg-[var(--color-surface)] text-[var(--color-text-primary)]">
+                Sort: Difficulty (High → Low)
+              </option>
+              <option value="diff-asc" className="bg-[var(--color-surface)] text-[var(--color-text-primary)]">
+                Sort: Difficulty (Low → High)
+              </option>
+              <option value="level-desc" className="bg-[var(--color-surface)] text-[var(--color-text-primary)]">
+                Sort: Mastery Level
+              </option>
+              <option value="newest" className="bg-[var(--color-surface)] text-[var(--color-text-primary)]">
+                Sort: Recently Added
+              </option>
+              <option value="alpha" className="bg-[var(--color-surface)] text-[var(--color-text-primary)]">
+                Sort: Question (A → Z)
+              </option>
+            </select>
+          </div>
+
+          {/* View Switcher: Standardized h-10 height */}
+          <div className="h-10 flex items-center p-1 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] self-end lg:self-center">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`h-full px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-semibold transition-colors ${
+                viewMode === 'grid'
+                  ? 'bg-[var(--color-accent)] text-white shadow-sm'
+                  : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
+              }`}
+              title="Grid View"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`h-full px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-semibold transition-colors ${
+                viewMode === 'list'
+                  ? 'bg-[var(--color-accent)] text-white shadow-sm'
+                  : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
+              }`}
+              title="List View"
+            >
+              <List className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
 
-        {/* Quick Subject Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto py-2 no-scrollbar">
+        {/* Category & Subject Filter Pills (Unified Color System) */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar pt-1">
           {languages.map((lang) => {
             const isSelected = selectedLanguage.toLowerCase() === lang.toLowerCase();
-            const count = lang === 'all' ? cards.length : cards.filter((c) => c.language.toLowerCase() === lang.toLowerCase()).length;
+            const count =
+              lang === 'all'
+                ? cards.length
+                : cards.filter((c) => c.language.toLowerCase() === lang.toLowerCase()).length;
+            const token = getCategoryToken(lang);
+
             return (
               <button
                 key={lang}
                 onClick={() => setSelectedLanguage(lang)}
-                className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+                style={
                   isSelected
-                    ? 'bg-[var(--accent)] text-white shadow-sm shadow-[var(--accent-glow)]'
-                    : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] border border-[var(--border-color)]'
+                    ? {
+                        backgroundColor: token.bg,
+                        color: token.text,
+                        borderColor: token.border,
+                      }
+                    : undefined
+                }
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 border ${
+                  isSelected
+                    ? 'shadow-sm'
+                    : 'bg-[var(--color-surface)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:border-[var(--color-border-hover)] hover:text-[var(--color-text-primary)]'
                 }`}
               >
-                {lang === 'all' ? 'All Subjects' : lang} ({count})
+                {lang !== 'all' && (
+                  <span
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{ backgroundColor: token.dot }}
+                  />
+                )}
+                <span>{lang === 'all' ? 'All' : lang}</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                    isSelected
+                      ? 'bg-black/10 dark:bg-white/10'
+                      : 'bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)]'
+                  }`}
+                >
+                  {count}
+                </span>
               </button>
             );
           })}
         </div>
 
-        {/* Status Count */}
-        <div className="flex items-center justify-between mt-2 pt-3 border-t border-[var(--border-color)] text-xs text-[var(--text-dim)]">
-          <span>
-            Showing <strong className="text-[var(--text-primary)]">{filteredCards.length}</strong> of{' '}
-            {cards.length} flashcards
+        {/* Status Bar */}
+        <div className="flex items-center justify-between pt-2 border-t border-[var(--color-border)] text-xs text-[var(--color-text-tertiary)]">
+          <div className="flex items-center gap-2">
+            <span>
+              Showing <strong className="text-[var(--color-text-primary)]">{filteredAndSortedCards.length}</strong> of{' '}
+              {cards.length} cards
+            </span>
+            {hasActiveFilters && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setSelectedLanguage('all');
+                  setSelectedCategory('all');
+                }}
+                className="text-[var(--color-accent)] hover:underline font-medium text-[11px] ml-2"
+              >
+                Clear all filters
+              </button>
+            )}
+          </div>
+          <span className="text-[11px] font-mono hidden sm:inline">
+            Mode: {viewMode === 'grid' ? 'Grid' : 'Compact List'}
           </span>
         </div>
       </div>
 
-      {/* Cards Grid */}
-      {filteredCards.length === 0 ? (
-        <div className="glass-panel rounded-3xl p-12 text-center border border-[var(--border-color)]">
-          <Filter className="w-10 h-10 text-[var(--text-dim)] mx-auto mb-3" />
-          <h3 className="text-lg font-bold text-[var(--text-primary)]">No flashcards found</h3>
-          <p className="text-xs text-[var(--text-muted)] mt-1 mb-4">
+      {/* 3. Empty State */}
+      {filteredAndSortedCards.length === 0 && (
+        <div className="glass-panel rounded-3xl p-12 text-center border border-[var(--color-border)]">
+          <Filter className="w-10 h-10 text-[var(--color-text-tertiary)] mx-auto mb-3 opacity-60" />
+          <h3 className="text-lg font-bold text-[var(--color-text-primary)]">No flashcards found</h3>
+          <p className="text-xs text-[var(--color-text-secondary)] mt-1 mb-4">
             Try adjusting your search query or language/category filter
           </p>
           <button
@@ -262,75 +417,111 @@ export const CardLibrary: React.FC<CardLibraryProps> = ({
               setSelectedLanguage('all');
               setSelectedCategory('all');
             }}
-            className="px-4 py-2 rounded-xl bg-[var(--accent)] text-white text-xs font-bold"
+            className="px-4 py-2 rounded-xl bg-[var(--color-accent)] text-white text-xs font-bold shadow hover:brightness-110"
           >
-            Clear All Filters
+            Reset Filters
           </button>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredCards.map((card) => {
+      )}
+
+      {/* 4. Grid View: Enhanced Visual Hierarchy & Equalized Spacing */}
+      {viewMode === 'grid' && filteredAndSortedCards.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredAndSortedCards.map((card) => {
             const isRevealed = revealedCardIds.has(card.id);
+            const isCodeExpanded = expandedCodeIds.has(card.id);
+            const token = getCategoryToken(card.language);
+            const snippetLines = card.code_snippet?.trim().split('\n') || [];
+            const isSnippetLong = snippetLines.length > 4;
 
             return (
               <div
                 key={card.id}
-                className="glass-card rounded-2xl p-5 border border-[var(--border-color)] flex flex-col justify-between hover:border-[var(--border-highlight)] transition-all group"
+                style={{ borderLeftColor: token.dot }}
+                className="glass-card rounded-2xl p-5 sm:p-6 border border-[var(--color-border)] border-l-4 flex flex-col justify-between hover:border-[var(--color-border-hover)] transition-all duration-200 group"
               >
-                <div>
-                  {/* Card Header */}
+                <div className="w-full">
+                  {/* Card Header Row: One Primary Color Accent, Demoted Secondary Metadata */}
                   <div className="flex items-center justify-between gap-2 mb-3">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/30">
+                      {/* Primary Color Accent: Language Badge */}
+                      <span
+                        style={{
+                          backgroundColor: token.bg,
+                          color: token.text,
+                          borderColor: token.border,
+                        }}
+                        className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 border"
+                      >
+                        <span
+                          className="w-1.5 h-1.5 rounded-full"
+                          style={{ backgroundColor: token.dot }}
+                        />
                         {card.language}
                       </span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] bg-white/5 text-[var(--text-muted)]">
+
+                      {/* Secondary Monochrome Pill: Category Tag */}
+                      <span className="px-2 py-0.5 rounded-full text-[10px] bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)] border border-[var(--color-border)] font-medium">
                         {card.category}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2 text-[10px] font-mono text-[var(--text-dim)]">
+                    {/* Secondary Metadata: Muted, Monochrome Style */}
+                    <div className="flex items-center gap-2 text-[11px] font-mono text-[var(--color-text-tertiary)]">
                       {card.hint && (
-                        <span className="flex items-center gap-0.5 text-amber-400" title={`Hint: ${card.hint}`}>
-                          <Lightbulb className="w-3 h-3" />
+                        <span className="text-amber-500" title={`Hint: ${card.hint}`}>
+                          <Lightbulb className="w-3.5 h-3.5" />
                         </span>
                       )}
-                      <span className="flex items-center gap-0.5" title="Difficulty">
-                        <Flame className="w-3 h-3 text-amber-400" />
-                        {card.difficulty.toFixed(1)}x
+                      <span className="flex items-center gap-0.5" title={`Spaced Repetition Ladder Level ${card.interval_level}`}>
+                        <Clock className="w-3 h-3 text-[var(--color-text-tertiary)]" />
+                        <span>Lvl {card.interval_level}</span>
                       </span>
-                      <span className="flex items-center gap-0.5" title="Leitner Level">
-                        <Clock className="w-3 h-3 text-sky-400" />
-                        Lvl {card.interval_level}
+                      <span>·</span>
+                      <span className="flex items-center gap-0.5" title={`Difficulty: ${card.difficulty.toFixed(1)}x`}>
+                        <Flame className="w-3 h-3 text-[var(--color-text-tertiary)]" />
+                        <span>{card.difficulty.toFixed(1)}x</span>
                       </span>
                     </div>
                   </div>
 
-                  {/* Question */}
-                  <h4 className="text-sm font-bold text-[var(--text-primary)] mb-2 leading-snug">
+                  {/* Question: Clear Visual Focus of the Card */}
+                  <h3 className="text-base font-bold tracking-tight text-[var(--color-text-primary)] mb-3 leading-snug">
                     {card.question}
-                  </h4>
+                  </h3>
 
-                  {/* Snippet Preview */}
+                  {/* Code Snippet Preview: High contrast, theme-aware, standardized internal padding */}
                   {card.code_snippet && (
-                    <div className="my-2">
+                    <div className="w-full my-0 mb-4">
                       <CodeBlock
                         code={card.code_snippet}
                         language={card.language}
                         showLineNumbers={false}
+                        compact={true}
+                        maxHeight={isCodeExpanded ? 'none' : '110px'}
                       />
+                      {isSnippetLong && (
+                        <button
+                          onClick={(e) => toggleCodeExpand(card.id, e)}
+                          className="text-[10px] text-[var(--color-accent)] hover:underline mt-1 font-mono flex items-center gap-1"
+                        >
+                          {isCodeExpanded ? '▲ Collapse snippet' : `▼ Show all (${snippetLines.length} lines)`}
+                        </button>
+                      )}
                     </div>
                   )}
 
-                  {/* Revealed Answer Box */}
+                  {/* Revealed Answer Accordion Drawer */}
                   {isRevealed && (
-                    <div className="mt-3 p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/30 animate-in fade-in duration-150">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 mb-0.5">
-                        Answer
+                    <div className="w-full mb-4 p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 animate-in fade-in duration-150">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-1">
+                        Solution
                       </div>
-                      <div className="text-xs font-mono font-bold text-emerald-200">{card.answer}</div>
+                      <div className="text-xs font-mono font-bold text-emerald-800 dark:text-emerald-200 leading-relaxed">
+                        {card.answer}
+                      </div>
                       {card.explanation && (
-                        <p className="text-[11px] text-[var(--text-muted)] mt-1.5 leading-relaxed">
+                        <p className="text-[11px] text-[var(--color-text-secondary)] mt-2 leading-relaxed border-t border-emerald-500/15 pt-2">
                           {card.explanation}
                         </p>
                       )}
@@ -338,12 +529,12 @@ export const CardLibrary: React.FC<CardLibraryProps> = ({
                   )}
                 </div>
 
-                {/* Card Footer Actions */}
-                <div className="mt-4 pt-3 border-t border-[var(--border-color)] flex items-center justify-between text-xs">
-                  {/* Reveal Toggle */}
+                {/* Card Footer Row: Equalized Spacing, Clear Left View Answer vs Right Action Cluster */}
+                <div className="w-full mt-auto pt-4 border-t border-[var(--color-border)] flex items-center justify-between text-xs">
+                  {/* Left-Aligned: View Answer Toggle */}
                   <button
                     onClick={(e) => toggleReveal(card.id, e)}
-                    className="flex items-center gap-1 text-[11px] font-semibold text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors"
+                    className="flex items-center gap-1.5 text-xs font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] transition-colors"
                   >
                     {isRevealed ? (
                       <>
@@ -358,22 +549,29 @@ export const CardLibrary: React.FC<CardLibraryProps> = ({
                     )}
                   </button>
 
-                  {/* Edit / Delete Buttons */}
+                  {/* Right-Aligned: Action Cluster with Identical 32x32px Button Sizing */}
                   <div className="flex items-center gap-1">
+                    <button
+                      onClick={(e) => handleStudySingle(card, e)}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--color-text-tertiary)] hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-[var(--color-surface-secondary)] border border-transparent hover:border-[var(--color-border)] transition-colors"
+                      title="Practice this card"
+                    >
+                      <Play className="w-3.5 h-3.5" />
+                    </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         onEditCard(card);
                       }}
-                      className="p-1.5 text-[var(--text-dim)] hover:text-[var(--text-primary)] rounded-lg hover:bg-white/10 transition-colors"
-                      title="Edit Card"
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-secondary)] border border-transparent hover:border-[var(--color-border)] transition-colors"
+                      title="Edit card"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
                     <button
                       onClick={(e) => handleDelete(card.id, e)}
-                      className="p-1.5 text-[var(--text-dim)] hover:text-red-400 rounded-lg hover:bg-red-500/10 transition-colors"
-                      title="Delete Card"
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--color-text-tertiary)] hover:text-red-500 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-colors"
+                      title="Delete card"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -382,6 +580,132 @@ export const CardLibrary: React.FC<CardLibraryProps> = ({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* 5. List / Table View: Token-Integrated & High-Density */}
+      {viewMode === 'list' && filteredAndSortedCards.length > 0 && (
+        <div className="glass-panel rounded-2xl border border-[var(--color-border)] overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[var(--color-surface-secondary)] border-b border-[var(--color-border)] text-[var(--color-text-secondary)] uppercase tracking-wider font-bold text-[10px]">
+                <tr>
+                  <th className="py-3 px-4">Subject</th>
+                  <th className="py-3 px-4">Question & Details</th>
+                  <th className="py-3 px-4">Category</th>
+                  <th className="py-3 px-4">Level & Diff</th>
+                  <th className="py-3 px-4">Answer</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--color-border)] text-[var(--color-text-primary)]">
+                {filteredAndSortedCards.map((card) => {
+                  const isRevealed = revealedCardIds.has(card.id);
+                  const token = getCategoryToken(card.language);
+
+                  return (
+                    <tr
+                      key={card.id}
+                      className="hover:bg-[var(--color-surface-hover)] transition-colors group"
+                    >
+                      {/* Language Column */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <span
+                          style={{
+                            backgroundColor: token.bg,
+                            color: token.text,
+                            borderColor: token.border,
+                          }}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border"
+                        >
+                          <span
+                            className="w-1.5 h-1.5 rounded-full"
+                            style={{ backgroundColor: token.dot }}
+                          />
+                          {card.language}
+                        </span>
+                      </td>
+
+                      {/* Question Column */}
+                      <td className="py-3.5 px-4 min-w-[280px]">
+                        <div className="font-bold text-xs text-[var(--color-text-primary)]">
+                          {card.question}
+                        </div>
+                        {card.code_snippet && (
+                          <div className="text-[10px] font-mono text-[var(--color-text-tertiary)] mt-0.5 truncate max-w-md">
+                            <code>{card.code_snippet.split('\n')[0]}</code>
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Category Column */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <span className="px-2 py-0.5 rounded-md bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] text-[11px]">
+                          {card.category}
+                        </span>
+                      </td>
+
+                      {/* Level & Difficulty Column */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5 font-mono text-[11px] text-[var(--color-text-tertiary)]">
+                          <span>Lvl {card.interval_level}</span>
+                          <span>·</span>
+                          <span>{card.difficulty.toFixed(1)}x</span>
+                        </div>
+                      </td>
+
+                      {/* Answer Column */}
+                      <td className="py-3.5 px-4 min-w-[180px]">
+                        {isRevealed ? (
+                          <div className="text-emerald-700 dark:text-emerald-400 font-mono font-medium text-[11px]">
+                            {card.answer}
+                          </div>
+                        ) : (
+                          <button
+                            onClick={(e) => toggleReveal(card.id, e)}
+                            className="text-[11px] text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] flex items-center gap-1"
+                          >
+                            <Eye className="w-3 h-3" />
+                            <span>Peek</span>
+                          </button>
+                        )}
+                      </td>
+
+                      {/* Actions Column */}
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={(e) => handleStudySingle(card, e)}
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--color-text-tertiary)] hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-[var(--color-surface-secondary)] transition-colors"
+                            title="Study card"
+                          >
+                            <Play className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEditCard(card);
+                            }}
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-secondary)] transition-colors"
+                            title="Edit card"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => handleDelete(card.id, e)}
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--color-text-tertiary)] hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                            title="Delete card"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

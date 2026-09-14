@@ -15,6 +15,8 @@ import {
   LayoutDashboard,
   PlayCircle,
   Database,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useSound } from '../../context/SoundContext';
@@ -29,7 +31,7 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpenAuth }) => {
-  const { theme, setTheme, cycleTheme, reducedMotion, setReducedMotion } = useTheme();
+  const { theme, setTheme, isLight, toggleLightDark, reducedMotion, setReducedMotion } = useTheme();
   const { soundEnabled, toggleSound } = useSound();
   const { user, isAuthenticated, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -40,7 +42,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
     const unsubscribe = firebaseSyncService.subscribe((state) => {
       setSyncState(state);
     });
-    // Test initial connection
     firebaseSyncService.testConnection().catch(() => {});
     return () => unsubscribe();
   }, []);
@@ -51,7 +52,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
     sunset: { name: 'Sunset Fuchsia', color: '#e1306c' },
     emerald: { name: 'Emerald Mint', color: '#25d366' },
     neon: { name: 'Cyber Neon', color: '#00f5d4' },
-    nature: { name: 'Nature Calm', color: '#52b788' },
+    nature: { name: 'Nature Calm', color: '#10b981' },
   };
 
   const navItems = [
@@ -62,100 +63,90 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
   ] as const;
 
   return (
-    <header className="sticky top-0 z-40 w-full glass-panel border-b border-[var(--border-color)] transition-colors duration-200">
+    <header className="sticky top-0 z-40 w-full glass-panel border-b border-[var(--color-border)] bg-[var(--color-surface)]/90 backdrop-blur-md transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Brand Logo */}
-          <div
-            onClick={() => setCurrentTab('dashboard')}
-            className="flex items-center gap-3 cursor-pointer group select-none"
-          >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[var(--accent)] to-indigo-400 p-0.5 shadow-lg shadow-[var(--accent-glow)] group-hover:scale-105 transition-transform duration-200">
-              <div className="w-full h-full rounded-[10px] bg-[var(--bg-primary)] flex items-center justify-center">
-                <Layers className="w-5 h-5 text-[var(--accent)] group-hover:rotate-12 transition-transform duration-300" />
+          {/* Group 1: Primary Navigation (Logo + Tabs) */}
+          <div className="flex items-center gap-6">
+            {/* Brand Logo */}
+            <div
+              onClick={() => setCurrentTab('dashboard')}
+              className="flex items-center gap-2.5 cursor-pointer group select-none"
+            >
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[var(--color-accent)] to-indigo-400 p-0.5 shadow-md shadow-[var(--color-accent-subtle)] group-hover:scale-105 transition-transform duration-200">
+                <div className="w-full h-full rounded-[10px] bg-[var(--color-surface)] flex items-center justify-center">
+                  <Layers className="w-4 h-4 text-[var(--color-accent)] group-hover:rotate-12 transition-transform duration-300" />
+                </div>
               </div>
-            </div>
-            <div>
               <div className="flex items-center gap-1.5">
-                <span className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-[var(--text-primary)] via-[var(--text-primary)] to-[var(--accent)] bg-clip-text text-transparent">
+                <span className="font-extrabold text-base tracking-tight text-[var(--color-text-primary)]">
                   CodeCards
                 </span>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/30">
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[var(--color-accent-subtle)] text-[var(--color-accent)] border border-[var(--color-accent)]/25 font-bold">
                   3D
                 </span>
               </div>
-              <p className="text-[11px] text-[var(--text-muted)] hidden sm:block">Interactive Mastery System</p>
             </div>
+
+            {/* Desktop Navigation Tabs */}
+            <nav className="hidden md:flex items-center gap-1 bg-[var(--color-surface-secondary)] p-1 rounded-xl border border-[var(--color-border)]">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = currentTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setCurrentTab(item.id)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
+                      isActive
+                        ? 'bg-[var(--color-accent)] text-white shadow-sm'
+                        : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
           </div>
 
-          {/* Desktop Nav Tabs */}
-          <nav className="hidden md:flex items-center gap-1 bg-[var(--bg-secondary)]/70 p-1 rounded-xl border border-[var(--border-color)]">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = currentTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setCurrentTab(item.id)}
-                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
-                    isActive
-                      ? 'bg-[var(--accent)] text-white shadow-md shadow-[var(--accent-glow)] scale-[1.02]'
-                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-white/5'
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </nav>
+          {/* Group 2: Utility & Status Cluster (Right) */}
+          <div className="flex items-center gap-2">
+            {/* Subtle Divider between Nav and Utilities */}
+            <div className="h-5 w-px bg-[var(--color-border)] mx-1 hidden sm:block" />
 
-          {/* Right Toolbar Controls */}
-          <div className="hidden sm:flex items-center gap-2">
-            {/* Audio Toggle */}
+            {/* 1. TOP-LEVEL LIGHT / DARK THEME TOGGLE (Visible, Easy to find) */}
             <button
-              onClick={toggleSound}
-              className={`p-2 rounded-lg border transition-all duration-200 ${
-                soundEnabled
-                  ? 'border-[var(--border-color)] text-[var(--text-primary)] hover:bg-[var(--accent)]/10'
-                  : 'border-dashed border-red-500/40 text-red-400 bg-red-500/10'
-              }`}
-              title={soundEnabled ? 'Mute Audio Effects' : 'Unmute Audio Effects'}
+              onClick={toggleLightDark}
+              className="p-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-secondary)] hover:bg-[var(--color-surface-hover)] text-[var(--color-text-primary)] transition-all hover:scale-105"
+              title={isLight ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+              aria-label="Toggle Theme Mode"
             >
-              {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+              {isLight ? (
+                <Moon className="w-4 h-4 text-indigo-600" />
+              ) : (
+                <Sun className="w-4 h-4 text-amber-400" />
+              )}
             </button>
 
-            {/* Reduced Motion Toggle */}
-            <button
-              onClick={() => setReducedMotion(!reducedMotion)}
-              className={`p-2 rounded-lg border transition-all duration-200 ${
-                reducedMotion
-                  ? 'border-[var(--accent)] text-[var(--accent)] bg-[var(--accent)]/15'
-                  : 'border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-              }`}
-              title={reducedMotion ? 'Reduced Motion: Active' : 'Reduced Motion: Off (Click to enable)'}
-            >
-              <Eye className="w-4 h-4" />
-            </button>
-
-            {/* Theme Selector Dropdown */}
-            <div className="relative">
+            {/* 2. Theme Presets Dropdown (Palette) */}
+            <div className="relative hidden sm:block">
               <button
                 onClick={() => setThemeDropdownOpen(!themeDropdownOpen)}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[var(--border-color)] text-xs font-medium text-[var(--text-primary)] hover:border-[var(--border-highlight)] transition-colors"
-                title="Switch Theme"
+                className="p-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-secondary)] hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+                title={`Current Theme: ${themeLabels[theme]?.name || theme}`}
               >
-                <Palette className="w-3.5 h-3.5 text-[var(--accent)]" />
-                <span className="text-xs font-semibold">{themeLabels[theme]?.name || theme}</span>
+                <Palette className="w-4 h-4 text-[var(--color-accent)]" />
               </button>
 
               {themeDropdownOpen && (
                 <div
-                  className="absolute right-0 mt-2 w-44 rounded-xl glass-panel shadow-2xl p-1.5 border border-[var(--border-color)] z-50 animate-in fade-in zoom-in-95 duration-150"
+                  className="absolute right-0 mt-2 w-44 rounded-xl glass-panel shadow-xl p-1.5 border border-[var(--color-border)] z-50 animate-in fade-in zoom-in-95 duration-150"
                   onMouseLeave={() => setThemeDropdownOpen(false)}
                 >
-                  <div className="text-[10px] font-semibold text-[var(--text-muted)] px-2.5 py-1 uppercase tracking-wider">
-                    Select Theme
+                  <div className="text-[10px] font-semibold text-[var(--color-text-tertiary)] px-2.5 py-1 uppercase tracking-wider">
+                    Color Themes
                   </div>
                   {(Object.keys(themeLabels) as ThemeMode[]).map((tKey) => {
                     const tInfo = themeLabels[tKey];
@@ -169,13 +160,13 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
                         }}
                         className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs transition-colors ${
                           isSelected
-                            ? 'bg-[var(--accent)] text-white font-bold'
-                            : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-white/5'
+                            ? 'bg-[var(--color-accent)] text-white font-bold'
+                            : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-secondary)]'
                         }`}
                       >
                         <div className="flex items-center gap-2">
                           <span
-                            className="w-2.5 h-2.5 rounded-full border border-black/20"
+                            className="w-2.5 h-2.5 rounded-full border border-black/10"
                             style={{ backgroundColor: tInfo.color }}
                           />
                           <span>{tInfo.name}</span>
@@ -188,136 +179,113 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
               )}
             </div>
 
-            {/* Firebase Database Status Badge */}
+            {/* 3. Audio Toggle */}
+            <button
+              onClick={toggleSound}
+              className={`p-2 rounded-xl border transition-colors ${
+                soundEnabled
+                  ? 'border-[var(--color-border)] bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+                  : 'border-red-500/30 text-red-400 bg-red-500/10'
+              }`}
+              title={soundEnabled ? 'Audio Effects: On (Click to mute)' : 'Audio Effects: Muted (Click to unmute)'}
+            >
+              {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            </button>
+
+            {/* 4. Firebase Sync Status */}
             <button
               onClick={() => {
                 firebaseSyncService.testConnection().catch(() => {});
               }}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[var(--border-color)] text-xs font-medium text-[var(--text-primary)] hover:border-[var(--border-highlight)] transition-colors"
-              title={`Firebase Database: ${syncState.projectId}\nStatus: ${syncState.message}\nClick to re-check connection`}
+              className="p-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-secondary)] hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors relative"
+              title={`Firebase Cloud: ${syncState.status === 'connected' ? 'Connected & Ready' : syncState.message}`}
             >
-              <Database className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden xl:inline text-[11px] font-mono text-[var(--text-muted)]">
-                Firebase
-              </span>
+              <Database className="w-4 h-4 text-amber-500" />
               <span
-                className={`w-2 h-2 rounded-full ${
+                className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full ${
                   syncState.status === 'connected'
-                    ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse'
+                    ? 'bg-emerald-500'
                     : syncState.status === 'syncing'
                     ? 'bg-amber-400 animate-spin'
-                    : syncState.status === 'error'
-                    ? 'bg-amber-500'
                     : 'bg-slate-400'
                 }`}
               />
             </button>
 
-            {/* User Streak & Profile */}
-            {isAuthenticated && user ? (
-              <div className="flex items-center gap-2 pl-2 border-l border-[var(--border-color)]">
-                {/* Streak Badge */}
-                <div
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold"
-                  title={`${user.streakDays} Day Streak!`}
-                >
-                  <Flame className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
-                  <span>{user.streakDays}d</span>
-                </div>
+            {/* 5. Streak Badge */}
+            {user && (
+              <div
+                className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-600 dark:text-amber-400 text-xs font-bold"
+                title={`${user.streakDays} Day Study Streak`}
+              >
+                <Flame className="w-3.5 h-3.5 text-amber-500" />
+                <span>{user.streakDays}d</span>
+              </div>
+            )}
 
-                {/* Avatar & Logout */}
-                <div className="flex items-center gap-2">
-                  <img
-                    src={user.avatarUrl}
-                    alt={user.username}
-                    className="w-8 h-8 rounded-full border border-[var(--accent)] bg-black/20 p-0.5 object-cover"
-                  />
-                  <div className="text-left hidden lg:block">
-                    <div className="text-xs font-bold leading-tight">{user.username}</div>
-                    <div className="text-[10px] text-emerald-400 font-semibold">{user.grade} Grade</div>
-                  </div>
-                  <button
-                    onClick={logout}
-                    className="p-1.5 text-[var(--text-dim)] hover:text-red-400 rounded hover:bg-red-500/10 transition-colors"
-                    title="Logout"
-                  >
-                    <LogOut className="w-4 h-4" />
-                  </button>
-                </div>
+            {/* 6. User Profile & Logout */}
+            {isAuthenticated && user ? (
+              <div className="flex items-center gap-2 pl-1">
+                <img
+                  src={user.avatarUrl}
+                  alt={user.username}
+                  className="w-8 h-8 rounded-full border border-[var(--color-border)] bg-black/10 object-cover"
+                />
+                <button
+                  onClick={logout}
+                  className="p-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                  title="Log out of session"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
               </div>
             ) : (
               <button
                 onClick={onOpenAuth}
-                className="px-3.5 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-bold shadow-md shadow-[var(--accent-glow)] transition-all"
+                className="px-3 py-1.5 rounded-xl bg-[var(--color-accent)] text-white text-xs font-bold shadow-sm hover:brightness-110 transition-all"
               >
                 Sign In
               </button>
             )}
-          </div>
 
-          {/* Mobile hamburger */}
-          <div className="flex md:hidden items-center gap-2">
+            {/* Mobile Hamburger Toggle */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-lg border border-[var(--border-color)] text-[var(--text-primary)]"
+              className="p-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-secondary)] text-[var(--color-text-primary)] md:hidden"
+              aria-label="Toggle navigation menu"
             >
-              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
             </button>
           </div>
         </div>
-      </div>
 
-      {/* Mobile Drawer */}
-      {mobileMenuOpen && (
-        <div className="md:hidden glass-panel border-b border-[var(--border-color)] px-4 pt-2 pb-4 space-y-2">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = currentTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => {
-                  setCurrentTab(item.id);
-                  setMobileMenuOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                  isActive
-                    ? 'bg-[var(--accent)] text-white'
-                    : 'text-[var(--text-muted)] hover:bg-white/5'
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
-          <div className="pt-2 border-t border-[var(--border-color)] flex items-center justify-between">
-            <button
-              onClick={cycleTheme}
-              className="flex items-center gap-2 text-xs font-medium text-[var(--text-muted)]"
-            >
-              <Palette className="w-4 h-4 text-[var(--accent)]" />
-              <span>Theme: {themeLabels[theme]?.name || theme}</span>
-            </button>
-            <button
-              onClick={() => {
-                firebaseSyncService.testConnection().catch(() => {});
-              }}
-              className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-muted)]"
-            >
-              <Database className="w-3.5 h-3.5 text-amber-400" />
-              <span>DB: {syncState.status === 'connected' ? 'Connected' : syncState.status}</span>
-            </button>
-            <button
-              onClick={toggleSound}
-              className="flex items-center gap-2 text-xs font-medium text-[var(--text-muted)]"
-            >
-              {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-              <span>Sound {soundEnabled ? 'On' : 'Off'}</span>
-            </button>
+        {/* Mobile Navigation Drawer */}
+        {mobileMenuOpen && (
+          <div className="md:hidden py-3 border-t border-[var(--color-border)] animate-in fade-in slide-in-from-top-2 duration-150 space-y-1">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = currentTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setCurrentTab(item.id);
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-colors ${
+                    isActive
+                      ? 'bg-[var(--color-accent)] text-white'
+                      : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-secondary)]'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </header>
   );
 };

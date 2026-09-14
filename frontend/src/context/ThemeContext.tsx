@@ -5,6 +5,8 @@ interface ThemeContextType {
   theme: ThemeMode;
   setTheme: (theme: ThemeMode) => void;
   cycleTheme: () => void;
+  isLight: boolean;
+  toggleLightDark: () => void;
   reducedMotion: boolean;
   setReducedMotion: (reduced: boolean) => void;
 }
@@ -18,7 +20,14 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     let saved = localStorage.getItem('codecards_theme');
     if (saved === 'instagram') saved = 'sunset';
     if (saved === 'whatsapp') saved = 'emerald';
-    return THEMES.includes(saved as ThemeMode) ? (saved as ThemeMode) : 'dark';
+    if (saved && THEMES.includes(saved as ThemeMode)) {
+      return saved as ThemeMode;
+    }
+    // Default to system preference on first visit
+    if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+      return 'light';
+    }
+    return 'dark';
   });
 
   const [reducedMotion, setReducedMotionState] = useState<boolean>(() => {
@@ -26,7 +35,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (saved !== null) {
       return saved === 'true';
     }
-    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    return typeof window !== 'undefined' && window.matchMedia
+      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      : false;
   });
 
   useEffect(() => {
@@ -34,13 +45,41 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem('codecards_theme', theme);
   }, [theme]);
 
+  // Listen to system preference changes if user hasn't explicitly set a preference
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: light)');
+    const handleChange = (e: MediaQueryListEvent) => {
+      const hasExplicit = localStorage.getItem('codecards_theme_explicit');
+      if (!hasExplicit) {
+        setThemeState(e.matches ? 'light' : 'dark');
+      }
+    };
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
+
   useEffect(() => {
     document.documentElement.setAttribute('data-reduced-motion', String(reducedMotion));
     localStorage.setItem('codecards_reduced_motion', String(reducedMotion));
   }, [reducedMotion]);
 
   const setTheme = (newTheme: ThemeMode) => {
+    localStorage.setItem('codecards_theme_explicit', 'true');
     setThemeState(newTheme);
+  };
+
+  const isLight = theme === 'light';
+
+  const toggleLightDark = () => {
+    localStorage.setItem('codecards_theme_explicit', 'true');
+    if (isLight) {
+      const lastDark = (localStorage.getItem('codecards_last_dark_theme') as ThemeMode) || 'dark';
+      setThemeState(THEMES.includes(lastDark) && lastDark !== 'light' ? lastDark : 'dark');
+    } else {
+      localStorage.setItem('codecards_last_dark_theme', theme);
+      setThemeState('light');
+    }
   };
 
   const cycleTheme = () => {
@@ -56,7 +95,17 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, cycleTheme, reducedMotion, setReducedMotion }}>
+    <ThemeContext.Provider
+      value={{
+        theme,
+        setTheme,
+        cycleTheme,
+        isLight,
+        toggleLightDark,
+        reducedMotion,
+        setReducedMotion,
+      }}
+    >
       {children}
     </ThemeContext.Provider>
   );
