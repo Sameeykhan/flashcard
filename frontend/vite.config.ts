@@ -7,4 +7,8 @@ export default defineConfig({
   optimizeDeps: {
     include: ['firebase/app', 'firebase/firestore', 'firebase/analytics'],
   },
+  server: {
+    host: true,
+    allowedHosts: true,
+  },
 });
