@@ -20,7 +20,6 @@ import {
   LayoutGrid,
   List,
   X,
-  ChevronDown,
 } from 'lucide-react';
 
 interface CardLibraryProps {

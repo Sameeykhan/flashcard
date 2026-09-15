@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { ThemeMode } from '../types';
 
@@ -23,11 +24,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (saved && THEMES.includes(saved as ThemeMode)) {
       return saved as ThemeMode;
     }
-    // Default to system preference on first visit
-    if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-      return 'light';
-    }
-    return 'dark';
+    return 'light';
   });
 
   const [reducedMotion, setReducedMotionState] = useState<boolean>(() => {

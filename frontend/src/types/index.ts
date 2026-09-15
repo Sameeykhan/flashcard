@@ -1,5 +1,7 @@
 export type ThemeMode = 'light' | 'dark' | 'neon' | 'nature' | 'sunset' | 'emerald';
 
+export type NavTab = 'dashboard' | 'study' | 'library' | 'leaderboard' | 'analytics' | 'achievements' | 'settings';
+
 export interface User {
   id: string;
   username: string;

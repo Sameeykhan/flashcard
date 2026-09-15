@@ -1,290 +1,297 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
-  Layers,
+  Search,
+  Sun,
+  Moon,
+  Bell,
+  ChevronDown,
+  Menu,
   Sparkles,
   Volume2,
   VolumeX,
-  Palette,
-  Eye,
   LogOut,
   Flame,
-  Menu,
-  X,
-  BookOpen,
-  Trophy,
-  LayoutDashboard,
-  PlayCircle,
-  Database,
-  Sun,
-  Moon,
+  CheckCircle2,
+  Calendar,
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useSound } from '../../context/SoundContext';
 import { useAuth } from '../../context/AuthContext';
-import { ThemeMode } from '../../types';
-import { firebaseSyncService, CloudSyncState } from '../../services/firebaseSyncService';
+import { RobotAvatar } from './RobotAvatar';
 
 interface NavbarProps {
-  currentTab: 'dashboard' | 'study' | 'library' | 'leaderboard';
-  setCurrentTab: (tab: 'dashboard' | 'study' | 'library' | 'leaderboard') => void;
+  onOpenSidebar: () => void;
   onOpenAuth: () => void;
+  onSearchFocus?: () => void;
+  searchQuery?: string;
+  setSearchQuery?: (query: string) => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpenAuth }) => {
-  const { theme, setTheme, isLight, toggleLightDark, reducedMotion, setReducedMotion } = useTheme();
+export const Navbar: React.FC<NavbarProps> = ({
+  onOpenSidebar,
+  onOpenAuth,
+  onSearchFocus,
+  searchQuery = '',
+  setSearchQuery,
+}) => {
+  const { isLight, toggleLightDark } = useTheme();
   const { soundEnabled, toggleSound } = useSound();
   const { user, isAuthenticated, logout } = useAuth();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [themeDropdownOpen, setThemeDropdownOpen] = useState(false);
-  const [syncState, setSyncState] = useState<CloudSyncState>(firebaseSyncService.state);
 
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(true);
+
+  const notificationsRef = useRef<HTMLDivElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdowns on outside click
   useEffect(() => {
-    const unsubscribe = firebaseSyncService.subscribe((state) => {
-      setSyncState(state);
-    });
-    firebaseSyncService.testConnection().catch(() => {});
-    return () => unsubscribe();
+    const handleClickOutside = (event: MouseEvent) => {
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target as Node)) {
+        setNotificationsOpen(false);
+      }
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+        setProfileMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const themeLabels: Record<ThemeMode, { name: string; color: string }> = {
-    dark: { name: 'Dark Slate', color: '#6366f1' },
-    light: { name: 'Light Modern', color: '#4f46e5' },
-    sunset: { name: 'Sunset Fuchsia', color: '#e1306c' },
-    emerald: { name: 'Emerald Mint', color: '#25d366' },
-    neon: { name: 'Cyber Neon', color: '#00f5d4' },
-    nature: { name: 'Nature Calm', color: '#10b981' },
-  };
-
-  const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'study', label: 'Study Session', icon: PlayCircle },
-    { id: 'library', label: 'Card Library', icon: BookOpen },
-    { id: 'leaderboard', label: 'Leaderboard', icon: Trophy },
-  ] as const;
+  const notificationsList = [
+    {
+      id: 'n-1',
+      title: 'Streak Milestone Unlocked!',
+      desc: 'You reached an unbroken 5-day study streak. Keep the momentum going!',
+      time: '10m ago',
+      icon: Flame,
+      color: 'text-amber-500 bg-amber-50 dark:bg-amber-950/40',
+    },
+    {
+      id: 'n-2',
+      title: 'SRS Leitner Review Ready',
+      desc: '4 flashcards are scheduled for review today across Python & JavaScript.',
+      time: '1h ago',
+      icon: Sparkles,
+      color: 'text-blue-500 bg-blue-50 dark:bg-blue-950/40',
+    },
+    {
+      id: 'n-3',
+      title: 'Leaderboard Update',
+      desc: 'Elena Rostova claimed #1 rank in the Weekly Peer Leaderboard.',
+      time: '3h ago',
+      icon: CheckCircle2,
+      color: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40',
+    },
+  ];
 
   return (
-    <header className="sticky top-0 z-40 w-full glass-panel border-b border-[var(--color-border)] bg-[var(--color-surface)]/90 backdrop-blur-md transition-colors duration-200">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Group 1: Primary Navigation (Logo + Tabs) */}
-          <div className="flex items-center gap-6">
-            {/* Brand Logo */}
-            <div
-              onClick={() => setCurrentTab('dashboard')}
-              className="flex items-center gap-2.5 cursor-pointer group select-none"
-            >
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[var(--color-accent)] to-indigo-400 p-0.5 shadow-md shadow-[var(--color-accent-subtle)] group-hover:scale-105 transition-transform duration-200">
-                <div className="w-full h-full rounded-[10px] bg-[var(--color-surface)] flex items-center justify-center">
-                  <Layers className="w-4 h-4 text-[var(--color-accent)] group-hover:rotate-12 transition-transform duration-300" />
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-extrabold text-base tracking-tight text-[var(--color-text-primary)]">
-                  CodeCards
-                </span>
-                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[var(--color-accent-subtle)] text-[var(--color-accent)] border border-[var(--color-accent)]/25 font-bold">
-                  3D
-                </span>
-              </div>
+    <header className="sticky top-0 z-30 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 transition-colors">
+      <div className="w-full px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+        {/* Left: Mobile Menu Toggle & Search Bar */}
+        <div className="flex items-center gap-3 flex-1 max-w-xl">
+          {/* Mobile hamburger button */}
+          <button
+            onClick={onOpenSidebar}
+            className="lg:hidden p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            aria-label="Open navigation menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+
+          {/* Search Box with ⌘ K shortcut */}
+          <div className="relative w-full max-w-md">
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+              <Search className="w-4 h-4" />
             </div>
-
-            {/* Desktop Navigation Tabs */}
-            <nav className="hidden md:flex items-center gap-1 bg-[var(--color-surface-secondary)] p-1 rounded-xl border border-[var(--color-border)]">
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = currentTab === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => setCurrentTab(item.id)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
-                      isActive
-                        ? 'bg-[var(--color-accent)] text-white shadow-sm'
-                        : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]'
-                    }`}
-                  >
-                    <Icon className="w-3.5 h-3.5" />
-                    <span>{item.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery && setSearchQuery(e.target.value)}
+              onFocus={onSearchFocus}
+              placeholder="Search cards, topics..."
+              className="w-full pl-10 pr-14 py-2 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+            />
+            <div className="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none">
+              <kbd className="hidden sm:inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-medium text-slate-400 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-md shadow-xs">
+                ⌘ K
+              </kbd>
+            </div>
           </div>
+        </div>
 
-          {/* Group 2: Utility & Status Cluster (Right) */}
-          <div className="flex items-center gap-2">
-            {/* Subtle Divider between Nav and Utilities */}
-            <div className="h-5 w-px bg-[var(--color-border)] mx-1 hidden sm:block" />
+        {/* Right: Actions Cluster (Theme Toggle, Notifications, Profile) */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* 1. Theme Toggle Button (Sun / Moon with rays) */}
+          <button
+            onClick={toggleLightDark}
+            className="w-9 h-9 rounded-full sm:rounded-2xl border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all shadow-xs"
+            title={isLight ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+            aria-label="Toggle theme mode"
+          >
+            {isLight ? (
+              <Sun className="w-4 h-4 text-amber-500" />
+            ) : (
+              <Moon className="w-4 h-4 text-blue-400" />
+            )}
+          </button>
 
-            {/* 1. TOP-LEVEL LIGHT / DARK THEME TOGGLE (Visible, Easy to find) */}
+          {/* 2. Notifications Bell with Red Indicator Dot */}
+          <div className="relative" ref={notificationsRef}>
             <button
-              onClick={toggleLightDark}
-              className="p-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-secondary)] hover:bg-[var(--color-surface-hover)] text-[var(--color-text-primary)] transition-all hover:scale-105"
-              title={isLight ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
-              aria-label="Toggle Theme Mode"
+              onClick={() => {
+                setNotificationsOpen(!notificationsOpen);
+                setUnreadNotifications(false);
+              }}
+              className="relative w-9 h-9 rounded-full sm:rounded-2xl border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all shadow-xs"
+              title="Notifications"
+              aria-label="View notifications"
             >
-              {isLight ? (
-                <Moon className="w-4 h-4 text-indigo-600" />
-              ) : (
-                <Sun className="w-4 h-4 text-amber-400" />
+              <Bell className="w-4 h-4" />
+              {unreadNotifications && (
+                <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white dark:ring-slate-900" />
               )}
             </button>
 
-            {/* 2. Theme Presets Dropdown (Palette) */}
-            <div className="relative hidden sm:block">
-              <button
-                onClick={() => setThemeDropdownOpen(!themeDropdownOpen)}
-                className="p-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-secondary)] hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
-                title={`Current Theme: ${themeLabels[theme]?.name || theme}`}
-              >
-                <Palette className="w-4 h-4 text-[var(--color-accent)]" />
-              </button>
-
-              {themeDropdownOpen && (
-                <div
-                  className="absolute right-0 mt-2 w-44 rounded-xl glass-panel shadow-xl p-1.5 border border-[var(--color-border)] z-50 animate-in fade-in zoom-in-95 duration-150"
-                  onMouseLeave={() => setThemeDropdownOpen(false)}
-                >
-                  <div className="text-[10px] font-semibold text-[var(--color-text-tertiary)] px-2.5 py-1 uppercase tracking-wider">
-                    Color Themes
+            {/* Notifications Popover */}
+            {notificationsOpen && (
+              <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-4 z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Notifications
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 font-bold">
+                      {notificationsList.length} New
+                    </span>
                   </div>
-                  {(Object.keys(themeLabels) as ThemeMode[]).map((tKey) => {
-                    const tInfo = themeLabels[tKey];
-                    const isSelected = theme === tKey;
+                  <button
+                    onClick={() => setNotificationsOpen(false)}
+                    className="text-[11px] font-semibold text-blue-600 hover:underline"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                <div className="divide-y divide-slate-100 dark:divide-slate-800/80 mt-2 max-h-72 overflow-y-auto">
+                  {notificationsList.map((item) => {
+                    const Icon = item.icon;
                     return (
-                      <button
-                        key={tKey}
-                        onClick={() => {
-                          setTheme(tKey);
-                          setThemeDropdownOpen(false);
-                        }}
-                        className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs transition-colors ${
-                          isSelected
-                            ? 'bg-[var(--color-accent)] text-white font-bold'
-                            : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-secondary)]'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="w-2.5 h-2.5 rounded-full border border-black/10"
-                            style={{ backgroundColor: tInfo.color }}
-                          />
-                          <span>{tInfo.name}</span>
+                      <div key={item.id} className="py-2.5 flex items-start gap-3 hover:bg-slate-50/60 dark:hover:bg-slate-800/40 rounded-xl px-2 transition-colors">
+                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${item.color}`}>
+                          <Icon className="w-4 h-4" />
                         </div>
-                        {isSelected && <Sparkles className="w-3 h-3" />}
-                      </button>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+                            {item.title}
+                          </p>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 mt-0.5">
+                            {item.desc}
+                          </p>
+                          <span className="text-[10px] text-slate-400 font-mono mt-1 block">
+                            {item.time}
+                          </span>
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
+          </div>
 
-            {/* 3. Audio Toggle */}
+          {/* 3. User Profile Dropdown (Red Robot Avatar + Alex Rivers + Chevron) */}
+          <div className="relative" ref={profileRef}>
             <button
-              onClick={toggleSound}
-              className={`p-2 rounded-xl border transition-colors ${
-                soundEnabled
-                  ? 'border-[var(--color-border)] bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
-                  : 'border-red-500/30 text-red-400 bg-red-500/10'
-              }`}
-              title={soundEnabled ? 'Audio Effects: On (Click to mute)' : 'Audio Effects: Muted (Click to unmute)'}
+              onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+              className="flex items-center gap-2.5 p-1 sm:px-2.5 sm:py-1.5 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/80 border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-all select-none"
+              aria-label="User profile menu"
             >
-              {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-            </button>
+              {/* Red Cute Robot Avatar */}
+              <RobotAvatar className="w-8 h-8 rounded-xl shadow-xs" />
+              
+              <span className="hidden md:inline text-sm font-semibold text-slate-800 dark:text-slate-200">
+                {user?.username || 'Alex Rivers'}
+              </span>
 
-            {/* 4. Firebase Sync Status */}
-            <button
-              onClick={() => {
-                firebaseSyncService.testConnection().catch(() => {});
-              }}
-              className="p-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-secondary)] hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors relative"
-              title={`Firebase Cloud: ${syncState.status === 'connected' ? 'Connected & Ready' : syncState.message}`}
-            >
-              <Database className="w-4 h-4 text-amber-500" />
-              <span
-                className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full ${
-                  syncState.status === 'connected'
-                    ? 'bg-emerald-500'
-                    : syncState.status === 'syncing'
-                    ? 'bg-amber-400 animate-spin'
-                    : 'bg-slate-400'
+              <ChevronDown
+                className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${
+                  profileMenuOpen ? 'rotate-180 text-blue-600' : ''
                 }`}
               />
             </button>
 
-            {/* 5. Streak Badge */}
-            {user && (
-              <div
-                className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-600 dark:text-amber-400 text-xs font-bold"
-                title={`${user.streakDays} Day Study Streak`}
-              >
-                <Flame className="w-3.5 h-3.5 text-amber-500" />
-                <span>{user.streakDays}d</span>
+            {/* Profile Dropdown Menu */}
+            {profileMenuOpen && (
+              <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="p-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <RobotAvatar className="w-10 h-10 rounded-2xl shadow-sm" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                        {user?.username || 'Alex Rivers'}
+                      </p>
+                      <p className="text-xs text-slate-500 truncate">
+                        {user?.email || 'alex.rivers@cs.edu'}
+                      </p>
+                      <span className="inline-block mt-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200/60">
+                        Grade {user?.grade || 'A'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="py-2 space-y-1">
+                  {/* Sound Toggle */}
+                  <button
+                    onClick={toggleSound}
+                    className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-colors"
+                  >
+                    <span className="flex items-center gap-2">
+                      {soundEnabled ? <Volume2 className="w-4 h-4 text-blue-500" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
+                      <span>Audio Effects</span>
+                    </span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">
+                      {soundEnabled ? 'ON' : 'OFF'}
+                    </span>
+                  </button>
+
+                  {/* Joined Date info */}
+                  <div className="px-3 py-2 text-xs text-slate-500 flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-slate-400" />
+                    <span>Member since Aug 20, 2026</span>
+                  </div>
+
+                  <hr className="border-slate-100 dark:border-slate-800 my-1" />
+
+                  {isAuthenticated ? (
+                    <button
+                      onClick={() => {
+                        logout();
+                        setProfileMenuOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-colors"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Sign Out</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        onOpenAuth();
+                        setProfileMenuOpen(false);
+                      }}
+                      className="w-full flex items-center justify-center py-2 px-3 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-xs"
+                    >
+                      Sign In / Register
+                    </button>
+                  )}
+                </div>
               </div>
             )}
-
-            {/* 6. User Profile & Logout */}
-            {isAuthenticated && user ? (
-              <div className="flex items-center gap-2 pl-1">
-                <img
-                  src={user.avatarUrl}
-                  alt={user.username}
-                  className="w-8 h-8 rounded-full border border-[var(--color-border)] bg-black/10 object-cover"
-                />
-                <button
-                  onClick={logout}
-                  className="p-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                  title="Log out of session"
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={onOpenAuth}
-                className="px-3 py-1.5 rounded-xl bg-[var(--color-accent)] text-white text-xs font-bold shadow-sm hover:brightness-110 transition-all"
-              >
-                Sign In
-              </button>
-            )}
-
-            {/* Mobile Hamburger Toggle */}
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-secondary)] text-[var(--color-text-primary)] md:hidden"
-              aria-label="Toggle navigation menu"
-            >
-              {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-            </button>
           </div>
         </div>
-
-        {/* Mobile Navigation Drawer */}
-        {mobileMenuOpen && (
-          <div className="md:hidden py-3 border-t border-[var(--color-border)] animate-in fade-in slide-in-from-top-2 duration-150 space-y-1">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = currentTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    setCurrentTab(item.id);
-                    setMobileMenuOpen(false);
-                  }}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-colors ${
-                    isActive
-                      ? 'bg-[var(--color-accent)] text-white'
-                      : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-secondary)]'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
       </div>
     </header>
   );
